@@ -1,0 +1,220 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+:root {
+  --color-bg: #FAFAFA;
+  --color-surface: #FFFFFF;
+  --color-border: #E4E4E7;
+  --color-brand-orange: #FF5500;
+  --color-text-primary: #09090B;
+}
+
+@layer base {
+  body {
+    background-color: var(--color-bg);
+    color: #09090B;
+    font-family: var(--font-sans), system-ui, -apple-system, sans-serif;
+    overflow-x: hidden;
+    min-height: 100vh;
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+  }
+}
+
+/* Light Mode Custom Scrollbar with Brand Orange Thumb Accent */
+::-webkit-scrollbar {
+  width: 8px;
+  height: 8px;
+}
+
+::-webkit-scrollbar-track {
+  background: #FAFAFA;
+}
+
+::-webkit-scrollbar-thumb {
+  background: #D4D4D8;
+  border-radius: 4px;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: #FF5500;
+}
+
+/* Selection Highlight */
+::selection {
+  background-color: rgba(255, 85, 0, 0.18);
+  color: #FF5500;
+}
+
+/* Tabular Numerals System for Financial UI */
+.font-tabular {
+  font-variant-numeric: tabular-nums lining-nums;
+  font-feature-settings: "tnum" 1, "lnum" 1;
+}
+
+/* ShipR Typography System v3.0 Responsive Headings */
+.text-hero-display {
+  font-family: var(--font-sans);
+  font-size: 3rem; /* 48px mobile */
+  font-weight: 900;
+  letter-spacing: -0.04em;
+  line-height: 1.05;
+}
+
+@media (min-width: 640px) {
+  .text-hero-display {
+    font-size: 4.5rem; /* 72px tablet */
+  }
+}
+
+@media (min-width: 1024px) {
+  .text-hero-display {
+    font-size: 5.5rem; /* 88px desktop */
+  }
+}
+
+.text-h1 {
+  font-family: var(--font-sans);
+  font-size: 2.25rem; /* 36px */
+  font-weight: 800;
+  letter-spacing: -0.03em;
+  line-height: 1.15;
+}
+
+@media (min-width: 640px) {
+  .text-h1 {
+    font-size: 3rem; /* 48px */
+  }
+}
+
+.text-h2 {
+  font-family: var(--font-sans);
+  font-size: 1.75rem; /* 28px */
+  font-weight: 700;
+  letter-spacing: -0.02em;
+  line-height: 1.2;
+}
+
+@media (min-width: 640px) {
+  .text-h2 {
+    font-size: 2.25rem; /* 36px */
+  }
+}
+
+.text-h3 {
+  font-family: var(--font-sans);
+  font-size: 1.25rem; /* 20px */
+  font-weight: 700;
+  letter-spacing: -0.01em;
+  line-height: 1.25;
+}
+
+.text-body-lg {
+  font-family: var(--font-sans);
+  font-size: 1.125rem; /* 18px */
+  font-weight: 400;
+  line-height: 1.6;
+}
+
+.text-body {
+  font-family: var(--font-sans);
+  font-size: 0.875rem; /* 14px */
+  font-weight: 400;
+  line-height: 1.5;
+}
+
+.text-caption {
+  font-family: var(--font-sans);
+  font-size: 0.75rem; /* 12px */
+  font-weight: 500;
+  line-height: 1.4;
+}
+
+.text-label {
+  font-family: var(--font-sans);
+  font-size: 0.75rem; /* 12px */
+  font-weight: 600;
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+}
+
+.text-badge {
+  font-family: var(--font-sans);
+  font-size: 0.75rem; /* 12px */
+  font-weight: 600;
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+}
+
+.text-button {
+  font-family: var(--font-sans);
+  font-size: 0.875rem; /* 14px */
+  font-weight: 600;
+  letter-spacing: 0em;
+}
+
+.text-nav {
+  font-family: var(--font-sans);
+  font-size: 0.875rem; /* 14px */
+  font-weight: 600;
+  letter-spacing: 0em;
+}
+
+.text-financial {
+  font-family: var(--font-mono);
+  font-weight: 800;
+  font-variant-numeric: tabular-nums lining-nums;
+  letter-spacing: -0.02em;
+}
+
+.text-timer {
+  font-family: var(--font-mono);
+  font-weight: 700;
+  font-variant-numeric: tabular-nums lining-nums;
+}
+
+.text-terminal-log {
+  font-family: var(--font-mono);
+  font-size: 0.8125rem; /* 13px */
+  font-weight: 400;
+  line-height: 1.6;
+}
+
+/* Light Mode Frosted Glass & Brand Glows */
+.glass-panel {
+  background: rgba(255, 255, 255, 0.85);
+  backdrop-filter: blur(16px);
+  -webkit-backdrop-filter: blur(16px);
+  border: 1px solid #E4E4E7;
+  box-shadow: 0 1px 3px 0 rgba(0, 0, 0, 0.04);
+}
+
+.glass-panel-hover {
+  transition: all 0.2s cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+.glass-panel-hover:hover {
+  border-color: rgba(255, 85, 0, 0.4);
+  box-shadow: 0 4px 20px -2px rgba(255, 85, 0, 0.15);
+  transform: translateY(-2px);
+}
+
+.cyber-grid {
+  background-size: 40px 40px;
+  background-image: 
+    linear-gradient(to right, rgba(0, 0, 0, 0.03) 1px, transparent 1px),
+    linear-gradient(to bottom, rgba(0, 0, 0, 0.03) 1px, transparent 1px);
+}
+
+.text-gradient-orange {
+  background: linear-gradient(135deg, #FF5500 0%, #CC4400 100%);
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+}
+
+.text-gradient-emerald {
+  background: linear-gradient(135deg, #FF5500 0%, #E04B00 100%);
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+}
