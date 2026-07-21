@@ -43,7 +43,7 @@ export const RankBadge: React.FC<RankBadgeProps> = ({
     },
   };
 
-  const config = rankConfigs[rank];
+  const config = rankConfigs[(rank || "BRONZE").toUpperCase() as keyof typeof rankConfigs] || rankConfigs.BRONZE;
   const IconComponent = config.icon;
 
   return (

@@ -308,7 +308,7 @@ function SprintDetailContent({ slug }: { slug: string }) {
                   </div>
                   <div className="flex justify-between text-xs">
                     <span className="text-zinc-500">Account Name:</span>
-                    <span className="text-zinc-900 font-medium">ShipR Escrow Pool</span>
+                    <span className="text-zinc-950 font-medium block">ShipR Escrow Pool</span>
                   </div>
                 </div>
               )}
@@ -317,6 +317,27 @@ function SprintDetailContent({ slug }: { slug: string }) {
                   ✓ Account number copied to clipboard!
                 </p>
               )}
+              
+              <Button
+                size="sm"
+                variant="secondary"
+                className="w-full text-xs font-bold border-[#FF5500]/20 text-[#FF5500] hover:bg-[#FFF2EC]"
+                onClick={async () => {
+                  setIsJoining(true);
+                  try {
+                    await sprintService.joinSprint(sprint.id);
+                    setHasJoined(true);
+                    setShowCheckoutModal(false);
+                  } catch (err: any) {
+                    alert(err.message || "Failed to register bank transfer");
+                  } finally {
+                    setIsJoining(false);
+                  }
+                }}
+                isLoading={isJoining}
+              >
+                I have completed the Transfer
+              </Button>
             </div>
 
             <div className="relative flex py-1 items-center">
