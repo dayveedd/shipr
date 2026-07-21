@@ -1,8 +1,8 @@
 "use client";
 
-import React, { useEffect, useState, use } from "react";
+import React, { useEffect, useState, use, Suspense } from "react";
 import Link from "next/link";
-import { useRouter } from "next/navigation";
+import { useRouter, useSearchParams } from "next/navigation";
 import { Button } from "@/components/ui/Button";
 import { Card } from "@/components/ui/Card";
 import { StatCard } from "@/components/ui/StatCard";
@@ -15,9 +15,10 @@ import { Sprint } from "@/types";
 import { ArrowLeft, ShieldCheck, Zap, Trophy, CheckCircle, AlertTriangle, Copy } from "lucide-react";
 import { supabase } from "@/lib/supabase";
 
-export default function SprintDetailPage({ params }: { params: Promise<{ slug: string }> }) {
-  const { slug } = use(params);
+function SprintDetailContent({ slug }: { slug: string }) {
   const router = useRouter();
+  const searchParams = useSearchParams();
+  const paymentStatus = searchParams?.get("payment");
 
   const [sprint, setSprint] = useState<Sprint | null>(null);
   const [isJoining, setIsJoining] = useState(false);
@@ -27,9 +28,35 @@ export default function SprintDetailPage({ params }: { params: Promise<{ slug: s
 
   useEffect(() => {
     sprintService.getSprintBySlug(slug).then((res) => {
-      if (res.success) setSprint(res.data);
+      if (res.success && res.data) {
+        setSprint(res.data);
+        
+        // 1. Check if user is registered in this sprint in the database on load
+        supabase.auth.getUser().then(({ data: { user } }) => {
+          if (user) {
+            supabase
+              .from("sprint_participants")
+              .select("*")
+              .eq("sprint_id", res.data.id)
+              .eq("user_id", user.id)
+              .maybeSingle()
+              .then(({ data: participant }) => {
+                if (participant) {
+                  setHasJoined(true);
+                }
+              });
+          }
+        });
+      }
     });
   }, [slug]);
+
+  // 2. Immediate registration confirmation if user has successfully redirected back from Monnify
+  useEffect(() => {
+    if (paymentStatus === "success") {
+      setHasJoined(true);
+    }
+  }, [paymentStatus]);
 
   if (!sprint) {
     return (
@@ -329,5 +356,21 @@ export default function SprintDetailPage({ params }: { params: Promise<{ slug: s
         </div>
       )}
     </div>
+  );
+}
+
+export default function SprintDetailPage({ params }: { params: Promise<{ slug: string }> }) {
+  const { slug } = use(params);
+  return (
+    <Suspense fallback={
+      <div className="max-w-7xl mx-auto px-4 py-20 text-center text-caption text-zinc-500">
+        <div className="animate-pulse space-y-4">
+          <div className="h-8 bg-zinc-200 rounded w-1/3 mx-auto" />
+          <div className="h-4 bg-zinc-200 rounded w-1/2 mx-auto" />
+        </div>
+      </div>
+    }>
+      <SprintDetailContent slug={slug} />
+    </Suspense>
   );
 }
