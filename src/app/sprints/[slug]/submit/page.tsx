@@ -5,18 +5,34 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { Button } from "@/components/ui/Button";
 import { Card } from "@/components/ui/Card";
-import { submissionService, userService } from "@/services";
-import { ArrowLeft, Github, Globe, FileText, Cpu, AlertCircle } from "lucide-react";
+import { submissionService, userService, sprintService } from "@/services";
+import { Sprint } from "@/types";
+import { ArrowLeft, Github, Globe, FileText, Cpu, AlertCircle, Loader2 } from "lucide-react";
 
 export default function SubmissionPage({ params }: { params: Promise<{ slug: string }> }) {
   const { slug } = use(params);
   const router = useRouter();
 
+  const [user, setUser] = useState<any>(null);
+  const [sprint, setSprint] = useState<Sprint | null>(null);
+  const [isLoading, setIsLoading] = useState(true);
+
   useEffect(() => {
+    // 1. Fetch current user and redirect if not authed
     userService.getCurrentUser().then((res) => {
       if (!res.success || !res.data) {
         router.push(`/login?redirect=/sprints/${slug}/submit`);
+      } else {
+        setUser(res.data);
       }
+    });
+
+    // 2. Fetch sprint details
+    sprintService.getSprintBySlug(slug).then((res) => {
+      if (res.success && res.data) {
+        setSprint(res.data);
+      }
+      setIsLoading(false);
     });
   }, [router, slug]);
 
@@ -30,6 +46,18 @@ export default function SubmissionPage({ params }: { params: Promise<{ slug: str
     e.preventDefault();
     setError(null);
 
+    if (!sprint) {
+      setError("Sprint details not loaded yet.");
+      return;
+    }
+
+    // Verify if closed before triggering submission
+    const isClosed = sprint.status === "SETTLED" || sprint.status === "EVALUATING" || new Date(sprint.endTime) <= new Date();
+    if (isClosed) {
+      setError("This sprint has closed. Submissions are no longer accepted.");
+      return;
+    }
+
     if (!githubUrl.includes("github.com")) {
       setError("Please enter a valid GitHub repository URL.");
       return;
@@ -40,8 +68,9 @@ export default function SubmissionPage({ params }: { params: Promise<{ slug: str
     }
 
     setIsSubmitting(true);
+    // Use the dynamic sprint id instead of hardcoded 'spr_react_01'
     const res = await submissionService.submitProof({
-      sprintId: "spr_react_01",
+      sprintId: sprint.id,
       githubRepoUrl: githubUrl,
       deploymentUrl: deploymentUrl,
       notes: notes,
@@ -55,6 +84,44 @@ export default function SubmissionPage({ params }: { params: Promise<{ slug: str
     }
   };
 
+  if (isLoading) {
+    return (
+      <div className="max-w-3xl mx-auto px-4 py-20 text-center font-mono text-xs">
+        <Loader2 className="w-5 h-5 animate-spin mx-auto text-[#FF5500] mb-2" />
+        <span>Loading sprint details...</span>
+      </div>
+    );
+  }
+
+  if (!sprint) {
+    return (
+      <div className="max-w-3xl mx-auto px-4 py-20 text-center text-caption text-zinc-500">
+        <AlertCircle className="w-8 h-8 text-zinc-400 mx-auto mb-2" />
+        <span>Sprint not found.</span>
+      </div>
+    );
+  }
+
+  const isClosed = sprint.status === "SETTLED" || sprint.status === "EVALUATING" || new Date(sprint.endTime) <= new Date();
+
+  if (isClosed) {
+    return (
+      <div className="max-w-3xl mx-auto px-4 sm:px-6 lg:px-8 py-12 space-y-6">
+        <Link href={`/sprints/${slug}`} className="inline-flex items-center gap-2 text-xs font-bold text-zinc-500 hover:text-[#FF5500] transition-colors">
+          <ArrowLeft className="w-4 h-4" />
+          <span>Back to Sprint Details</span>
+        </Link>
+        <Card className="p-8 border-red-200 bg-red-50 text-center space-y-4 shadow-soft-card">
+          <AlertCircle className="w-8 h-8 text-red-500 mx-auto" />
+          <h3 className="text-h3 text-red-950 font-bold">Submission Period Closed</h3>
+          <p className="text-body text-red-900 font-sans">
+            This sprint has ended. Submissions are no longer accepted for this challenge.
+          </p>
+        </Card>
+      </div>
+    );
+  }
+
   return (
     <div className="max-w-3xl mx-auto px-4 sm:px-6 lg:px-8 py-12 space-y-6">
       <Link href={`/sprints/${slug}`} className="inline-flex items-center gap-2 text-xs font-bold text-zinc-500 hover:text-[#FF5500] transition-colors">
@@ -66,8 +133,8 @@ export default function SubmissionPage({ params }: { params: Promise<{ slug: str
         <h1 className="text-h1 text-zinc-900 font-extrabold font-sans">
           Submit Proof of Work
         </h1>
-        <p className="text-body text-zinc-600">
-          Provide your GitHub repository and live deployment URL. Gemini AI Judge will inspect your code against the Definition of Done.
+        <p className="text-body text-zinc-600 font-sans">
+          Provide your GitHub repository and live deployment URL for **{sprint.title}**. Gemini AI Judge will inspect your code against the Definition of Done.
         </p>
       </div>
 

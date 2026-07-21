@@ -26,6 +26,14 @@ function SprintDetailContent({ slug }: { slug: string }) {
   const [hasJoined, setHasJoined] = useState(false);
   const [isCopied, setIsCopied] = useState(false);
 
+  const fetchSprintDetails = () => {
+    sprintService.getSprintBySlug(slug).then((res) => {
+      if (res.success && res.data) {
+        setSprint(res.data);
+      }
+    });
+  };
+
   useEffect(() => {
     sprintService.getSprintBySlug(slug).then((res) => {
       if (res.success && res.data) {
@@ -114,6 +122,7 @@ function SprintDetailContent({ slug }: { slug: string }) {
   };
 
   const projectedPayout = sprint.commitmentNgn + sprint.commitmentNgn * 0.25;
+  const isClosed = sprint.status === "SETTLED" || sprint.status === "EVALUATING" || new Date(sprint.endTime) <= new Date();
 
   return (
     <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-10 bg-background">
@@ -141,10 +150,10 @@ function SprintDetailContent({ slug }: { slug: string }) {
               </div>
             </div>
 
-            <h1 className="text-h1 text-zinc-900">
+            <h1 className="text-h1 text-zinc-900 font-extrabold font-sans">
               {sprint.title}
             </h1>
-            <p className="text-body-lg text-zinc-600 mt-3">
+            <p className="text-body-lg text-zinc-600 mt-3 font-sans">
               {sprint.description}
             </p>
           </div>
@@ -204,14 +213,24 @@ function SprintDetailContent({ slug }: { slug: string }) {
             </div>
 
             {/* Action CTA */}
-            {hasJoined ? (
+            {isClosed ? (
+              <div className="p-4 rounded-xl bg-red-50 border border-red-200 text-center space-y-2">
+                <div className="flex items-center justify-center gap-2 text-red-700 font-bold text-sm">
+                  <AlertTriangle className="w-4 h-4" />
+                  <span>Sprint Closed</span>
+                </div>
+                <p className="text-xs text-red-800 leading-normal">
+                  This sprint has already ended. Registrations and submissions are closed.
+                </p>
+              </div>
+            ) : hasJoined ? (
               <div className="space-y-3">
                 <div className="p-3 rounded-lg bg-zinc-100 border border-zinc-300 text-center text-caption text-zinc-900 font-bold flex items-center justify-center gap-2">
-                  <CheckCircle className="w-4 h-4" />
+                  <CheckCircle className="w-4 h-4 text-emerald-600" />
                   <span>You are registered in this Sprint!</span>
                 </div>
                 <Link href={`/sprints/${sprint.slug}/submit`} className="block">
-                  <Button size="lg" variant="primary" className="w-full">
+                  <Button size="lg" variant="primary" className="w-full font-bold">
                     Submit Proof of Work
                   </Button>
                 </Link>
@@ -220,7 +239,7 @@ function SprintDetailContent({ slug }: { slug: string }) {
               <Button
                 size="lg"
                 variant="primary"
-                className="w-full"
+                className="w-full font-bold"
                 onClick={handleJoinClick}
               >
                 Commit {formatNGN(sprint.commitmentNgn)} & Join
@@ -328,6 +347,8 @@ function SprintDetailContent({ slug }: { slug: string }) {
                     await sprintService.joinSprint(sprint.id);
                     setHasJoined(true);
                     setShowCheckoutModal(false);
+                    // Re-fetch the latest metrics (pool size, slots claimed) from db immediately
+                    fetchSprintDetails();
                   } catch (err: any) {
                     alert(err.message || "Failed to register bank transfer");
                   } finally {

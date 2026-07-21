@@ -151,16 +151,20 @@ export class LiveSprintService implements ISprintService {
       if (joinError) throw joinError;
 
       // Update slots count
+      // Update slots count & total pool size
       const { data: sprint } = await supabase
         .from("sprints")
-        .select("filled_slots")
+        .select("filled_slots, commitment_ngn, total_pool_ngn")
         .eq("id", sprintId)
         .single();
 
       if (sprint) {
         await supabase
           .from("sprints")
-          .update({ filled_slots: (sprint.filled_slots || 0) + 1 })
+          .update({
+            filled_slots: (sprint.filled_slots || 0) + 1,
+            total_pool_ngn: (sprint.total_pool_ngn || 0) + Number(sprint.commitment_ngn || 5000),
+          })
           .eq("id", sprintId);
       }
 
