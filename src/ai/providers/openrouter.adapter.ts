@@ -92,7 +92,8 @@ RULES:
 4. DO NOT invent missing requirements or judge based on personal aesthetic opinions.
 5. Every DoD item MUST have a corresponding entry in the reasoning array matching its exact itemId, itemTitle, and verificationMethod.
 6. Set overall result to "PASS" if and only if all required DoD items pass verification. Otherwise set result to "FAIL".
-7. Return ONLY a valid JSON object strictly matching this JSON schema:
+7. STRICT DOMAIN & LANGUAGE CORRELATION RULE: Verify that the submitted codebase language, framework, and implementation domain strictly match the Sprint Title, Description, and DoD rules. If a submission uses a completely different technology stack or domain (e.g. submitting a JavaScript web framework like React for an iOS Swift Secure Element Cryptography or C++/Go sprint), you MUST mark affected DoD items as FAILED with an explicit domain mismatch explanation.
+8. Return ONLY a valid JSON object strictly matching this JSON schema:
 {
   "result": "PASS" | "FAIL",
   "confidenceScore": number (0-100),
@@ -193,8 +194,20 @@ ${JSON.stringify(input.definitionOfDone, null, 2)}
         const treeMatches = input.githubEvidence.fileTree.some((f) => f.toLowerCase().includes(keyword));
         const readmeMatches = input.githubEvidence.readmeText?.toLowerCase().includes(keyword);
 
-        isPassed = isRepoValid && (treeMatches || Boolean(readmeMatches) || input.githubEvidence.fileTree.length > 5);
-        details = isPassed
+        const sprintTitle = (input.sprintTitle || "").toLowerCase();
+        const isIosOrCryptoSprint = sprintTitle.includes("ios") || sprintTitle.includes("cryptography") || sprintTitle.includes("secure element");
+        const hasCryptoOrSwiftFiles = input.githubEvidence.fileTree.some((f) => {
+          const lower = f.toLowerCase();
+          return lower.endsWith(".swift") || lower.endsWith(".m") || lower.endsWith(".h") || lower.includes("crypto") || lower.includes("ecc");
+        });
+
+        // Domain Mismatch Guard: If sprint requires iOS/Crypto but repository has no Swift or Cryptography files
+        const isDomainMismatch = isIosOrCryptoSprint && !hasCryptoOrSwiftFiles;
+
+        isPassed = isRepoValid && !isDomainMismatch && (treeMatches || Boolean(readmeMatches));
+        details = isDomainMismatch
+          ? `Domain Mismatch: Submitted codebase (${input.githubEvidence.detectedFramework}) does not contain required iOS Swift/Cryptography implementation files for "${input.sprintTitle}".`
+          : isPassed
           ? `Verified ${dod.title} [Method: ${method}] in repository tree (${input.githubEvidence.detectedFramework})`
           : `Could not verify ${dod.title} [Method: ${method}] in repository file tree`;
       }
