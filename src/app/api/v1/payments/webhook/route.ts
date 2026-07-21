@@ -7,13 +7,22 @@ export async function POST(request: Request) {
     const rawBody = await request.text();
     const signature = request.headers.get("monnify-signature");
 
-    const secretKey = process.env.MONNIFY_SECRET_KEY;
-    const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
-    const supabaseServiceKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
+    // Trim variables to prevent issues with copied whitespaces/newlines
+    const secretKey = process.env.MONNIFY_SECRET_KEY?.trim();
+    const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL?.trim();
+    const supabaseServiceKey = process.env.SUPABASE_SERVICE_ROLE_KEY?.trim();
+
+    console.log("Monnify Webhook Diagnostic Info:", {
+      hasSecretKey: !!secretKey,
+      hasSupabaseUrl: !!supabaseUrl,
+      hasSupabaseServiceKey: !!supabaseServiceKey,
+      receivedSignature: signature,
+      rawBodyLength: rawBody?.length || 0
+    });
 
     if (!secretKey || !supabaseUrl || !supabaseServiceKey) {
       console.error("Missing webhook environment configuration variables inside Monnify Webhook endpoint");
-      return NextResponse.json({ success: false, message: "Server misconfiguration" }, { status: 500 });
+      return NextResponse.json({ success: false, message: "Server misconfiguration - check environment variables" }, { status: 500 });
     }
 
     // 1. Verify Monnify HMAC Signature (Case-insensitive) to secure the webhook
