@@ -36,9 +36,9 @@ export default function SubmissionPage({ params }: { params: Promise<{ slug: str
     });
   }, [router, slug]);
 
-  const [githubUrl, setGithubUrl] = useState("https://github.com/alexdev/react-landing-shipr");
-  const [deploymentUrl, setDeploymentUrl] = useState("https://react-landing-shipr.vercel.app");
-  const [notes, setNotes] = useState("Implemented dark mode, pricing toggle, responsive layout, and validated contact form.");
+  const [githubUrl, setGithubUrl] = useState("");
+  const [deploymentUrl, setDeploymentUrl] = useState("");
+  const [notes, setNotes] = useState("");
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
