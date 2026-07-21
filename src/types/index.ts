@@ -113,6 +113,12 @@ export interface Sprint {
   creatorId?: string;
   creatorName?: string;
   isFeatured?: boolean;
+  poolAccounts?: Array<{
+    bankName: string;
+    accountNumber: string;
+    bankCode: string;
+  }>;
+  subAccountCode?: string;
 }
 
 export interface User {

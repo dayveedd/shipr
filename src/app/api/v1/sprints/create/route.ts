@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 import { createClient } from "@supabase/supabase-js";
-import { createReservedAccount } from "@/lib/monnify";
+import { createReservedAccount, createMonnifySubAccount } from "@/lib/monnify";
 
 export const dynamic = "force-dynamic";
 
@@ -52,29 +52,22 @@ export async function POST(request: Request) {
       return NextResponse.json({ success: false, message: "Missing challenge parameters" }, { status: 400 });
     }
 
-    const accountReference = `spr_ref_${Date.now()}`;
-    const accountName = `ShipR Pool: ${title.substring(0, 45)}`;
+    // 1. Assign central shared escrow account pool to the challenge
+    const globalBankCode = process.env.MONNIFY_GLOBAL_BANK_CODE || "035";
+    const globalBankName = process.env.MONNIFY_GLOBAL_BANK_NAME || "Wema Bank";
+    const globalAccountNumber = process.env.MONNIFY_GLOBAL_ACCOUNT_NUMBER || "0010993026";
 
-    // 1. Setup Monnify escrow payment reserved account
-    let poolAccounts = [];
-    try {
-      poolAccounts = await createReservedAccount(accountReference, accountName);
-    } catch (err: any) {
-      console.warn("Monnify reserved account creation failed, using sandbox fallback:", err);
-      // Fallback: Generate sandbox test mock accounts to guarantee demo works
-      poolAccounts = [
-        {
-          bankName: "Providus Bank (Test Escrow)",
-          accountNumber: "9982736450",
-          bankCode: "101",
-        },
-        {
-          bankName: "Wema Bank (Test Escrow)",
-          accountNumber: "7763549201",
-          bankCode: "035",
-        }
-      ];
-    }
+    const poolAccounts = [
+      {
+        bankName: globalBankName,
+        accountNumber: globalAccountNumber,
+        bankCode: globalBankCode,
+      }
+    ];
+
+    // Sub-account code is left empty because all checkout payments will settle directly
+    // into the merchant parent account wallet where the central escrow resides.
+    const subAccountCode = "";
 
     // 2. Insert challenge record into Supabase Database
     const newSprintId = `spr_${Date.now()}`;
@@ -110,6 +103,7 @@ export async function POST(request: Request) {
       creator_name: user.user_metadata?.full_name || user.email?.split("@")[0] || "Creator",
       is_featured: false,
       pool_accounts: poolAccounts,
+      sub_account_code: subAccountCode,
     };
 
     const { data: inserted, error: dbError } = await authenticatedSupabase
@@ -131,14 +125,15 @@ export async function POST(request: Request) {
         });
       }
 
-      // Fallback: If sprints table insertion fails due to missing custom column 'pool_accounts',
-      // insert without it to support legacy schemas and return successfully
+      // Fallback: If sprints table insertion fails due to missing custom columns (pool_accounts or sub_account_code),
+      // insert without them to support legacy schemas and return successfully
       try {
         const { data: fallbackInserted, error: fallbackError } = await authenticatedSupabase
           .from("sprints")
           .insert({
             ...newSprint,
-            pool_accounts: undefined
+            pool_accounts: undefined,
+            sub_account_code: undefined
           })
           .select()
           .single();

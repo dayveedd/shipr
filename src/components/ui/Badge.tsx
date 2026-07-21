@@ -52,7 +52,7 @@ export const RankBadge: React.FC<RankBadgeProps> = ({
     ? "ELITE"
     : "BRONZE";
 
-  const config = rankConfigs[safeRank];
+  const config = rankConfigs[safeRank] || rankConfigs.BRONZE;
   const IconComponent = config.icon;
 
   return (

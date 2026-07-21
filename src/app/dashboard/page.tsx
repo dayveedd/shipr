@@ -11,13 +11,14 @@ import { CountdownTimer } from "@/components/ui/CountdownTimer";
 import { formatNGN } from "@/lib/utils";
 import { sprintService, userService } from "@/services";
 import { Sprint, User, FinancialWorkflowStage } from "@/types";
-import { Trophy, Flame, ShieldCheck, ArrowRight, Clock, CheckCircle2, AlertCircle, Loader2, Github } from "lucide-react";
+import { Trophy, Flame, ShieldCheck, ArrowRight, Clock, CheckCircle2, AlertCircle, Loader2, Github, XCircle } from "lucide-react";
 import { supabase } from "@/lib/supabase";
 
 export default function DashboardPage() {
   const router = useRouter();
   const [user, setUser] = useState<User | null>(null);
   const [sprints, setSprints] = useState<Sprint[]>([]);
+  const [joinedSprintIds, setJoinedSprintIds] = useState<string[]>([]);
   const [submissions, setSubmissions] = useState<any[]>([]);
   const [isLoadingSubmissions, setIsLoadingSubmissions] = useState(true);
 
@@ -26,7 +27,7 @@ export default function DashboardPage() {
       if (res.success && res.data) {
         setUser(res.data);
 
-        // Fetch user submissions from Supabase joining sprints details
+        // 1. Fetch user submissions from Supabase joining sprints details
         try {
           const { data: subData, error } = await supabase
             .from("submissions")
@@ -66,6 +67,20 @@ export default function DashboardPage() {
         } finally {
           setIsLoadingSubmissions(false);
         }
+
+        // 2. Fetch user joined sprints from Supabase
+        try {
+          const { data: joinedData, error: joinedErr } = await supabase
+            .from("sprint_participants")
+            .select("sprint_id")
+            .eq("user_id", res.data.id);
+
+          if (!joinedErr && joinedData) {
+            setJoinedSprintIds(joinedData.map((jp: any) => jp.sprint_id));
+          }
+        } catch (joinedErr) {
+          console.error("Error loading joined sprints:", joinedErr);
+        }
       } else {
         router.push("/login?redirect=/dashboard");
       }
@@ -87,55 +102,67 @@ export default function DashboardPage() {
         );
       case "PAYMENT_PROCESSING":
         return (
-          <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-[#FFF2EC] text-[#FF5500] border border-[#FF5500]/30 text-xs font-bold font-mono animate-pulse">
-            <Loader2 className="w-3.5 h-3.5 animate-spin" />
-            <span>MONNIFY DISBURSING</span>
+          <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-amber-100 text-amber-800 border border-amber-300 text-xs font-bold font-mono">
+            <Clock className="w-3.5 h-3.5 text-amber-600 animate-pulse" />
+            <span>PROCESSING</span>
           </span>
         );
       case "AI_REVIEW_IN_PROGRESS":
         return (
-          <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-blue-50 text-blue-700 border border-blue-200 text-xs font-bold font-mono">
-            <Clock className="w-3.5 h-3.5 text-blue-600" />
-            <span>AI SCANNING</span>
+          <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-blue-100 text-blue-800 border border-blue-300 text-xs font-bold font-mono">
+            <Loader2 className="w-3.5 h-3.5 text-blue-600 animate-spin" />
+            <span>AI GRADING</span>
           </span>
         );
-      case "SUBMISSION_RECEIVED":
+      case "SUBMISSION_FAILED":
         return (
-          <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-zinc-100 text-zinc-700 border border-zinc-300 text-xs font-bold font-mono">
-            <Clock className="w-3.5 h-3.5 text-zinc-500" />
-            <span>RECEIVED</span>
+          <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-red-100 text-red-800 border border-red-300 text-xs font-bold font-mono">
+            <XCircle className="w-3.5 h-3.5 text-red-600" />
+            <span>FAILED</span>
           </span>
         );
       default:
         return (
-          <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-amber-50 text-amber-700 border border-amber-200 text-xs font-bold font-mono">
-            <span>{stage.replace(/_/g, " ")}</span>
+          <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-zinc-100 text-zinc-800 border border-zinc-200 text-xs font-mono">
+            <span>{stage}</span>
           </span>
         );
     }
   };
 
+  const handleConnectGithub = async () => {
+    try {
+      const { error } = await supabase.auth.signInWithOAuth({
+        provider: "github",
+        options: {
+          redirectTo: `${window.location.origin}/dashboard`,
+        },
+      });
+      if (error) throw error;
+    } catch (err: any) {
+      alert(err.message || "Failed to trigger GitHub authorization");
+    }
+  };
+
+  const joinedSprints = sprints.filter((sprint) => joinedSprintIds.includes(sprint.id));
+
   return (
-    <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-12 space-y-8">
-      {/* GitHub Connect Verification Alert Banner for Magic Link Logins */}
-      {user && user.role !== "VERIFIED_CREATOR" && (
-        <div className="p-5 rounded-2xl bg-[#FFF2EC] border border-[#FF5500]/30 flex flex-col sm:flex-row sm:items-center justify-between gap-4 shadow-soft-card animate-fadeIn">
-          <div className="flex items-start gap-3">
-            <AlertCircle className="w-5 h-5 text-[#FF5500] shrink-0 mt-0.5" />
+    <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-10 bg-background space-y-10">
+      {/* Top Banner Notice if Github is not connected */}
+      {!user?.githubUsername && (
+        <div className="p-4 rounded-xl bg-[#FFF2EC] border border-[#FF5500]/20 flex flex-col sm:flex-row items-center justify-between gap-4 shadow-sm">
+          <div className="flex items-center gap-3">
+            <AlertCircle className="w-5 h-5 text-[#FF5500] shrink-0" />
             <div>
-              <h4 className="text-sm font-bold text-zinc-900 font-sans">Verify Developer Identity with GitHub</h4>
-              <p className="text-xs text-zinc-600 mt-1 max-w-2xl">
-                You logged in via email magic link. To join sprints, submit code repositories, and unlock the <strong>Creator Studio</strong> to publish developer challenges, you must link your GitHub profile.
-              </p>
+              <p className="text-body font-bold text-zinc-900">Verify GitHub Payout Channel</p>
+              <p className="text-caption text-zinc-600">Connect your GitHub account to enable the AI Code Judge to score submissions.</p>
             </div>
           </div>
           <Button
-            variant="primary"
             size="sm"
-            className="bg-zinc-900 hover:bg-zinc-800 border-zinc-900 text-white font-bold shrink-0 flex items-center justify-center gap-2 py-2 px-4 rounded-xl"
-            onClick={async () => {
-              await userService.loginWithGithub();
-            }}
+            variant="primary"
+            onClick={handleConnectGithub}
+            className="flex items-center gap-2 font-bold"
           >
             <Github className="w-4 h-4" />
             <span>Connect GitHub</span>
@@ -154,7 +181,7 @@ export default function DashboardPage() {
           <div>
             <div className="flex items-center gap-2">
               <h1 className="text-h1 text-zinc-900 font-extrabold font-sans">
-                {user?.name || "Alex Rivera"}
+                {user?.name || "Builder"}
               </h1>
               <RankBadge rank={user?.rank || "BRONZE"} />
             </div>
@@ -275,49 +302,68 @@ export default function DashboardPage() {
       {/* Active Joined Sprints Grid */}
       <div className="space-y-4 pt-4">
         <h2 className="text-h2 text-zinc-900 font-bold">
-          Active Sprint Commitments ({sprints.length})
+          Active Sprint Commitments ({joinedSprints.length})
         </h2>
 
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-          {sprints.map((sprint) => (
-            <Card key={sprint.id} className="p-6 space-y-4 flex flex-col justify-between border-zinc-200 shadow-soft-card">
-              <div>
-                <div className="flex items-center justify-between gap-2 mb-3">
-                  <StatusBadge status={sprint.status} />
-                  <CountdownTimer targetDate={sprint.endTime} size="sm" />
-                </div>
-
-                <h3 className="text-h3 text-zinc-900 font-bold line-clamp-1">
-                  {sprint.title}
-                </h3>
-                <p className="text-body text-zinc-600 text-xs mt-1 line-clamp-2">
-                  {sprint.description}
-                </p>
-
-                <div className="mt-4 p-3 rounded-lg bg-[#FFF2EC]/60 border border-[#FF5500]/20 flex items-center justify-between">
-                  <div>
-                    <span className="text-label text-zinc-500 block">Your Stake</span>
-                    <span className="text-financial text-base text-[#FF5500] font-bold">
-                      {formatNGN(sprint.commitmentNgn)}
-                    </span>
+        {joinedSprints.length === 0 ? (
+          <Card className="p-10 border-zinc-200 text-center space-y-4 shadow-soft-card max-w-2xl">
+            <AlertCircle className="w-8 h-8 text-zinc-400 mx-auto" />
+            <h3 className="text-h3 text-zinc-800 font-bold">No Active Commitments</h3>
+            <p className="text-body text-zinc-500">
+              You haven't joined any active sprints yet. Browse the available sprints, make your commitment stake pool deposit, and start building!
+            </p>
+            <Link href="/sprints" className="inline-block">
+              <Button variant="primary" size="md">
+                Find Sprints to Join
+              </Button>
+            </Link>
+          </Card>
+        ) : (
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+            {joinedSprints.map((sprint) => {
+              const projectedPayout = sprint.commitmentNgn + sprint.commitmentNgn * 0.25;
+              return (
+                <Card key={sprint.id} className="p-6 border-zinc-200 hover:border-zinc-300 transition-colors shadow-soft-card flex flex-col justify-between space-y-6">
+                  <div className="space-y-3">
+                    <div className="flex items-center justify-between gap-2">
+                      <StatusBadge status={sprint.status} />
+                      <CountdownTimer targetDate={sprint.endTime} size="sm" />
+                    </div>
+                    <h3 className="text-h3 text-zinc-900 font-bold leading-snug">
+                      {sprint.title}
+                    </h3>
+                    <p className="text-body text-zinc-500 line-clamp-3">
+                      {sprint.description}
+                    </p>
                   </div>
-                  <div className="text-right">
-                    <span className="text-label text-zinc-500 block">Total Pool</span>
-                    <span className="text-financial text-xs text-zinc-900 font-bold">
-                      {formatNGN(sprint.totalPoolNgn)}
-                    </span>
-                  </div>
-                </div>
-              </div>
 
-              <Link href={`/sprints/${sprint.slug}/submit`}>
-                <Button size="md" variant="primary" className="w-full">
-                  Submit Proof of Work
-                </Button>
-              </Link>
-            </Card>
-          ))}
-        </div>
+                  <div className="space-y-4 pt-4 border-t border-zinc-100">
+                    <div className="grid grid-cols-2 gap-4 text-center">
+                      <div className="p-2.5 rounded bg-zinc-50 border border-zinc-100">
+                        <span className="text-[10px] text-zinc-500 uppercase font-mono block">Your Stake</span>
+                        <span className="text-sm font-extrabold font-mono text-[#FF5500]">
+                          {formatNGN(sprint.commitmentNgn)}
+                        </span>
+                      </div>
+                      <div className="p-2.5 rounded bg-zinc-50 border border-zinc-100">
+                        <span className="text-[10px] text-zinc-500 uppercase font-mono block">Est. Payout</span>
+                        <span className="text-sm font-extrabold font-mono text-zinc-900">
+                          {formatNGN(projectedPayout)}
+                        </span>
+                      </div>
+                    </div>
+
+                    <Link href={`/sprints/${sprint.slug}`} className="block">
+                      <Button variant="primary" size="md" className="w-full font-bold">
+                        Submit Proof of Work
+                      </Button>
+                    </Link>
+                  </div>
+                </Card>
+              );
+            })}
+          </div>
+        )}
       </div>
     </div>
   );
