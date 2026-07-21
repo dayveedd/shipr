@@ -96,13 +96,96 @@ PAYMENT_SUCCESSFUL <── FUNDS_RELEASED <── PAYMENT_PROCESSING <───�
    npm install
    ```
 
-3. **Run Development Server:**
+3. **Configure Environment Variables:**
+   Copy the template environment variables:
+   ```bash
+   cp .env.example .env.local
+   ```
+   Fill in your Supabase project endpoints and Monnify API Keys inside `.env.local`.
+
+4. **Initialize Supabase Database Schema:**
+   Open the **SQL Editor** in your [Supabase Console](https://supabase.com/dashboard), create a new query page, paste the following SQL script, and run it to set up all tables and Row Level Security (RLS) policies:
+   ```sql
+   -- 1. Profiles Table (User Accounts)
+   CREATE TABLE IF NOT EXISTS public.profiles (
+       id UUID PRIMARY KEY REFERENCES auth.users(id) ON DELETE CASCADE,
+       github_username TEXT,
+       name TEXT,
+       avatar_url TEXT,
+       role TEXT DEFAULT 'BUILDER',
+       rank TEXT DEFAULT 'BRONZE',
+       total_earned_ngn NUMERIC DEFAULT 0,
+       sprints_completed INTEGER DEFAULT 0,
+       current_streak INTEGER DEFAULT 0,
+       longest_streak INTEGER DEFAULT 0,
+       success_rate NUMERIC DEFAULT 100,
+       joined_at TIMESTAMPTZ DEFAULT NOW(),
+       is_verified_creator BOOLEAN DEFAULT FALSE,
+       creator_verification_status TEXT DEFAULT 'NONE'
+   );
+
+   -- Enable RLS for Profiles
+   ALTER TABLE public.profiles ENABLE ROW LEVEL SECURITY;
+   CREATE POLICY "Allow public read profiles" ON public.profiles FOR SELECT USING (true);
+   CREATE POLICY "Allow individual insert/update" ON public.profiles FOR ALL USING (auth.uid() = id);
+
+   -- 2. Sprints Table (Challenges)
+   CREATE TABLE IF NOT EXISTS public.sprints (
+       id TEXT PRIMARY KEY,
+       title TEXT NOT NULL,
+       slug TEXT UNIQUE NOT NULL,
+       description TEXT,
+       category TEXT,
+       commitment_ngn NUMERIC DEFAULT 5000,
+       total_slots INTEGER DEFAULT 10,
+       filled_slots INTEGER DEFAULT 0,
+       duration_hours INTEGER DEFAULT 48,
+       status TEXT DEFAULT 'ACTIVE',
+       start_time TIMESTAMPTZ DEFAULT NOW(),
+       end_time TIMESTAMPTZ,
+       total_pool_ngn NUMERIC DEFAULT 0,
+       pass_count INTEGER DEFAULT 0,
+       fail_count INTEGER DEFAULT 0,
+       tags TEXT[],
+       definition_of_done JSONB,
+       creator_id UUID REFERENCES public.profiles(id),
+       creator_name TEXT,
+       is_featured BOOLEAN DEFAULT FALSE,
+       pool_accounts JSONB
+   );
+
+   -- Enable RLS for Sprints
+   ALTER TABLE public.sprints ENABLE ROW LEVEL SECURITY;
+   CREATE POLICY "Allow public read sprints" ON public.sprints FOR SELECT USING (true);
+   CREATE POLICY "Allow authenticated create sprints" ON public.sprints FOR INSERT WITH CHECK (auth.role() = 'authenticated');
+
+   -- 3. Submissions Table (Proof of Work)
+   CREATE TABLE IF NOT EXISTS public.submissions (
+       id TEXT PRIMARY KEY,
+       sprint_id TEXT REFERENCES public.sprints(id) ON DELETE CASCADE,
+       user_id UUID REFERENCES public.profiles(id) ON DELETE CASCADE,
+       github_repo_url TEXT,
+       deployment_url TEXT,
+       notes TEXT,
+       submitted_at TIMESTAMPTZ DEFAULT NOW(),
+       stage TEXT DEFAULT 'SUBMISSION_RECEIVED',
+       payout_tx_hash TEXT,
+       settled_at TIMESTAMPTZ
+   );
+
+   -- Enable RLS for Submissions
+   ALTER TABLE public.submissions ENABLE ROW LEVEL SECURITY;
+   CREATE POLICY "Allow users read own submissions" ON public.submissions FOR SELECT USING (auth.uid() = user_id);
+   CREATE POLICY "Allow users insert own submissions" ON public.submissions FOR INSERT WITH CHECK (auth.uid() = user_id);
+   ```
+
+5. **Run Development Server:**
    ```bash
    npm run dev
    ```
    Open **[http://localhost:3000](http://localhost:3000)** in your browser.
 
-4. **Build for Production:**
+6. **Build for Production:**
    ```bash
    npm run build
    npm run start

@@ -1,14 +1,42 @@
 "use client";
 
-import React from "react";
+import React, { useEffect, useState } from "react";
 import Link from "next/link";
-import { ShieldCheck, Lock, LogOut, Activity } from "lucide-react";
+import { useRouter } from "next/navigation";
+import { userService } from "@/services";
+import { ShieldCheck, Lock, LogOut, Activity, Loader2 } from "lucide-react";
 
 export default function AdminLayout({
   children,
 }: {
   children: React.ReactNode;
 }) {
+  const router = useRouter();
+  const [isAdmin, setIsAdmin] = useState<boolean | null>(null);
+
+  useEffect(() => {
+    userService.getCurrentUser().then((res) => {
+      if (res.success && res.data?.role === "ADMIN") {
+        setIsAdmin(true);
+      } else {
+        setIsAdmin(false);
+        router.push("/login?redirect=/admin");
+      }
+    });
+  }, [router]);
+
+  if (isAdmin === null) {
+    return (
+      <div className="min-h-screen bg-background flex flex-col items-center justify-center space-y-4">
+        <Loader2 className="w-8 h-8 animate-spin text-[#FF5500]" />
+        <p className="text-zinc-600 font-mono text-sm font-semibold">Verifying administrative credentials...</p>
+      </div>
+    );
+  }
+
+  if (isAdmin === false) {
+    return null;
+  }
   return (
     <div className="min-h-screen bg-[#FAFAFA] text-zinc-900 font-sans flex flex-col selection:bg-[#FF5500] selection:text-white">
       {/* Light Theme Admin Header Console */}

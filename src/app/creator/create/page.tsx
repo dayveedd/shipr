@@ -1,22 +1,24 @@
 "use client";
 
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { Button } from "@/components/ui/Button";
 import { Card } from "@/components/ui/Card";
-import { ChallengeCategory } from "@/types";
-import { Zap, ShieldCheck, Plus, Trash2, ArrowLeft, CheckCircle2, Sparkles, Lock, Clock, Code2, AlertCircle } from "lucide-react";
+import { ChallengeCategory, User } from "@/types";
+import { userService } from "@/services";
+import { supabase } from "@/lib/supabase";
+import { Zap, ShieldCheck, Plus, Trash2, ArrowLeft, CheckCircle2, Sparkles, Lock, Clock, Code2, AlertCircle, Loader2 } from "lucide-react";
 
 export default function CreateChallengePage() {
   const router = useRouter();
 
-  // Verification Gate State (Simulated: set to true to test full studio, false to test verification process)
-  const [isVerifiedCreator, setIsVerifiedCreator] = useState(true);
-  const [verificationStatus, setVerificationStatus] = useState<"NONE" | "PENDING" | "APPROVED">("APPROVED");
+  // Verification Gate State
+  const [user, setUser] = useState<User | null>(null);
+  const [isLoading, setIsLoading] = useState(true);
 
   // Application Form State
-  const [githubUrl, setGithubUrl] = useState("https://github.com/alexdev");
+  const [githubUrl, setGithubUrl] = useState("");
   const [expertise, setExpertise] = useState<ChallengeCategory>("FRONTEND");
   const [reason, setReason] = useState("");
   const [isApplying, setIsApplying] = useState(false);
@@ -36,6 +38,18 @@ export default function CreateChallengePage() {
     { id: "dod_3", title: "Mobile Viewport Responsive", description: "No horizontal scroll layout shifts at 375px breakpoint", isRequired: true },
   ]);
 
+  useEffect(() => {
+    userService.getCurrentUser().then((res) => {
+      if (res.success && res.data) {
+        setUser(res.data);
+        if (res.data.githubUsername) {
+          setGithubUrl(`https://github.com/${res.data.githubUsername}`);
+        }
+      }
+      setIsLoading(false);
+    });
+  }, []);
+
   const addDodItem = () => {
     setDodItems([
       ...dodItems,
@@ -53,28 +67,119 @@ export default function CreateChallengePage() {
     setDodItems(dodItems.filter((item) => item.id !== id));
   };
 
-  const handleApplyVerification = (e: React.FormEvent) => {
+  const handleApplyVerification = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!githubUrl || !reason) return;
+    if (!githubUrl || !reason || !user) return;
 
     setIsApplying(true);
-    setTimeout(() => {
+    try {
+      const { error } = await supabase
+        .from("profiles")
+        .update({ creator_verification_status: "PENDING" })
+        .eq("id", user.id);
+      
+      if (error) throw error;
+      
+      const res = await userService.getCurrentUser();
+      if (res.success) setUser(res.data);
+    } catch (err: any) {
+      alert(err.message || "Failed to submit verification application");
+    } finally {
       setIsApplying(false);
-      setVerificationStatus("PENDING");
-    }, 800);
+    }
   };
 
-  const handlePublish = (e: React.FormEvent) => {
+  const handleBypass = async () => {
+    if (!user) return;
+    setIsLoading(true);
+    try {
+      await supabase
+        .from("profiles")
+        .update({
+          role: "VERIFIED_CREATOR",
+          is_verified_creator: true,
+          creator_verification_status: "APPROVED"
+        })
+        .eq("id", user.id);
+
+      const res = await userService.getCurrentUser();
+      if (res.success) setUser(res.data);
+    } catch (err: any) {
+      alert(err.message || "Failed to bypass verification");
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  const handlePublish = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!title || !description) return;
+    if (!title || !description || !user) return;
 
     setIsSubmitting(true);
-    setTimeout(() => {
-      setIsSubmitting(false);
+    try {
+      const { data: { session } } = await supabase.auth.getSession();
+      const token = session?.access_token;
+
+      if (!token) {
+        throw new Error("No active session found. Please log in again.");
+      }
+
+      const response = await fetch("/api/v1/sprints/create", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          "Authorization": `Bearer ${token}`,
+        },
+        body: JSON.stringify({
+          title,
+          category,
+          commitmentNgn,
+          totalSlots,
+          durationHours,
+          description,
+          dodItems,
+        }),
+      });
+
+      const resData = await response.json();
+
+      if (!response.ok || !resData.success) {
+        throw new Error(resData.message || "Failed to publish challenge");
+      }
+
       alert("Developer Challenge created & published to live sprint discovery!");
       router.push("/sprints");
-    }, 1000);
+    } catch (err: any) {
+      alert(err.message || "Failed to publish challenge");
+    } finally {
+      setIsSubmitting(false);
+    }
   };
+
+  if (isLoading) {
+    return (
+      <div className="min-h-[calc(100vh-4rem)] flex flex-col items-center justify-center space-y-4">
+        <Loader2 className="w-8 h-8 animate-spin text-[#FF5500]" />
+        <p className="text-zinc-600 font-mono text-sm">Loading studio configurations...</p>
+      </div>
+    );
+  }
+
+  if (!user) {
+    return (
+      <div className="max-w-md mx-auto px-4 py-16 text-center space-y-4">
+        <Lock className="w-12 h-12 text-[#FF5500] mx-auto" />
+        <h2 className="text-h2 text-zinc-900 font-extrabold">Authentication Required</h2>
+        <p className="text-body text-zinc-600">Please sign in to access the verified developer studio.</p>
+        <Link href="/login">
+          <Button variant="primary" className="mt-4">Go to Sign In</Button>
+        </Link>
+      </div>
+    );
+  }
+
+  const isVerifiedCreator = user.role === "VERIFIED_CREATOR";
+  const verificationStatus = user.creatorVerificationStatus || "NONE";
 
   // RENDER GATE 1: Creator Account Verification Required
   if (!isVerifiedCreator || verificationStatus !== "APPROVED") {
@@ -103,7 +208,7 @@ export default function CreateChallengePage() {
               Your Creator Verification application has been submitted to ShipR Admins. Once approved, you will unlock full challenge publishing capabilities.
             </p>
             <div className="pt-4 flex items-center justify-center gap-3">
-              <Button variant="secondary" onClick={() => { setIsVerifiedCreator(true); setVerificationStatus("APPROVED"); }}>
+              <Button variant="secondary" onClick={handleBypass}>
                 Demo Admin Approval Bypass
               </Button>
               <Link href="/sprints">

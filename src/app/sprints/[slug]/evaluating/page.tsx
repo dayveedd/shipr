@@ -2,7 +2,7 @@
 
 import React, { useEffect, useState, use } from "react";
 import Link from "next/link";
-import { useSearchParams } from "next/navigation";
+import { useSearchParams, useRouter } from "next/navigation";
 import { Button } from "@/components/ui/Button";
 import { Card } from "@/components/ui/Card";
 import { StatusBadge } from "@/components/ui/Badge";
@@ -10,7 +10,7 @@ import { TerminalView } from "@/components/ui/TerminalView";
 import { FinancialWorkflowTimeline } from "@/components/ui/FinancialWorkflowTimeline";
 import { ShareProofModal } from "@/components/ui/ShareProofModal";
 import { formatNGN } from "@/lib/utils";
-import { submissionService, settlementService, MOCK_AI_EVALUATION_PASS } from "@/services";
+import { submissionService, settlementService, userService, MOCK_AI_EVALUATION_PASS } from "@/services";
 import { AiEvaluation, SettlementSummary, FinancialWorkflowStage } from "@/types";
 import { Trophy, CheckCircle, ArrowRight, Share2, ShieldCheck, Flame, Banknote } from "lucide-react";
 
@@ -20,6 +20,7 @@ export default function AiEvaluatingPage({
   params: Promise<{ slug: string }>;
 }) {
   const { slug } = use(params);
+  const router = useRouter();
   const searchParams = useSearchParams();
   const submissionId = searchParams.get("submissionId") || "sub_100";
 
@@ -29,6 +30,12 @@ export default function AiEvaluatingPage({
   const [isShareModalOpen, setIsShareModalOpen] = useState(false);
 
   useEffect(() => {
+    userService.getCurrentUser().then((res) => {
+      if (!res.success || !res.data) {
+        router.push(`/login?redirect=/sprints/${slug}/evaluating?submissionId=${submissionId}`);
+      }
+    });
+
     submissionService.triggerAiEvaluation(submissionId).then((res) => {
       if (res.success) setEvaluation(res.data);
     });

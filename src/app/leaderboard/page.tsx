@@ -2,22 +2,30 @@
 
 import React, { useEffect, useState } from "react";
 import Link from "next/link";
+import { useRouter } from "next/navigation";
 import { Card } from "@/components/ui/Card";
 import { RankBadge } from "@/components/ui/Badge";
 import { formatNGN } from "@/lib/utils";
-import { leaderboardService } from "@/services";
+import { leaderboardService, userService } from "@/services";
 import { LeaderboardEntry } from "@/types";
 import { Trophy, Flame, CheckCircle, Award } from "lucide-react";
 
 export default function LeaderboardPage() {
+  const router = useRouter();
   const [entries, setEntries] = useState<LeaderboardEntry[]>([]);
   const [metric, setMetric] = useState<"earnings" | "streak" | "success">("earnings");
 
   useEffect(() => {
-    leaderboardService.getLeaderboard().then((res) => {
-      if (res.success) setEntries(res.data);
+    userService.getCurrentUser().then((res) => {
+      if (res.success && res.data) {
+        leaderboardService.getLeaderboard().then((lRes) => {
+          if (lRes.success) setEntries(lRes.data);
+        });
+      } else {
+        router.push("/login?redirect=/leaderboard");
+      }
     });
-  }, []);
+  }, [router]);
 
   return (
     <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-12 space-y-8">

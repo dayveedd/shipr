@@ -1,16 +1,24 @@
 "use client";
 
-import React, { useState, use } from "react";
+import React, { useState, use, useEffect } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { Button } from "@/components/ui/Button";
 import { Card } from "@/components/ui/Card";
-import { submissionService } from "@/services";
+import { submissionService, userService } from "@/services";
 import { ArrowLeft, Github, Globe, FileText, Cpu, AlertCircle } from "lucide-react";
 
 export default function SubmissionPage({ params }: { params: Promise<{ slug: string }> }) {
   const { slug } = use(params);
   const router = useRouter();
+
+  useEffect(() => {
+    userService.getCurrentUser().then((res) => {
+      if (!res.success || !res.data) {
+        router.push(`/login?redirect=/sprints/${slug}/submit`);
+      }
+    });
+  }, [router, slug]);
 
   const [githubUrl, setGithubUrl] = useState("https://github.com/alexdev/react-landing-shipr");
   const [deploymentUrl, setDeploymentUrl] = useState("https://react-landing-shipr.vercel.app");
