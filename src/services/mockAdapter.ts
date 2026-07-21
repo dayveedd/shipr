@@ -95,7 +95,7 @@ export class MockSubmissionService implements ISubmissionService {
     return { success: true, message: "Submission status fetched", data: submission };
   }
 
-  async triggerAiEvaluation(submissionId: string): Promise<ApiResponse<AiEvaluation>> {
+  async triggerAiEvaluation(submissionId: string, overrides?: { githubRepoUrl?: string; deploymentUrl?: string; notes?: string }): Promise<ApiResponse<AiEvaluation>> {
     await delay(1200);
     return { success: true, message: "AI evaluation completed", data: MOCK_AI_EVALUATION_PASS };
   }
