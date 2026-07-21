@@ -35,8 +35,9 @@ ShipR replaces passive habit trackers with an **Execution Economy**:
 
 ### ⚡ Strict 2-Verdict Financial & Evaluation Lifecycle
 - **Strict Binary Verdict Enforcement:** Financial & Evaluation Stage badges strictly display **`CHALLENGE PASSED`** (green badge with `View Disbursement Status` button) or **`SUBMISSION FAILED`** (red badge with `Resubmit Project` button).
-- **Multi-Attempt History & Deduplication:** Tracks developer resubmissions sequentially (`Attempt v1`, `Attempt v2`, `Attempt v3`...) with deduplicated versioning across Supabase and client state.
-- **Automated Monnify Escrow Payouts:** Winners gain instant access to their **Escrow Disbursement Status** on their proof certificate, showing original stake, 25% yield bonus, Monnify escrow sync, and live countdown timer.
+- **Multi-Attempt Versioning & Deduplication:** Sequentially tracks developer resubmissions (`Attempt v1`, `Attempt v2`, `Attempt v3`...) with deduplicated versioning across Supabase and persistent storage.
+- **Automated Monnify Escrow Payouts:** Winners gain instant access to their **Escrow Disbursement Status** on their proof certificate ([`/proof/[submissionId]`](file:///c:/ShipR/src/app/proof/%5BsubmissionId%5D/page.tsx)), showing original stake (`₦5,000`), 25% yield bonus (`+₦1,250`), Monnify escrow sync, and live countdown timer.
+- **Dual-Sync Persistence Engine:** Ensures 100% resilient state synchronization across Supabase server-side database and local persistent storage.
 
 ### 🏆 Interactive Features
 - **White Theme AI Inspection Console (`/sprints/[slug]/evaluating`):** Live terminal simulator streaming AI inspection logs with line-by-line DoD pass/fail checkmarks.
