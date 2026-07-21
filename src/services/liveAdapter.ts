@@ -450,7 +450,6 @@ export class LiveSubmissionService implements ISubmissionService {
           submitted_at: new Date().toISOString(),
         };
       }
-
       // Persist to localStorage for guaranteed UI state sync
       try {
         if (typeof window !== "undefined") {

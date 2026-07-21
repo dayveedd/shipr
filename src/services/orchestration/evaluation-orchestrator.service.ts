@@ -487,7 +487,7 @@ export class EvaluationOrchestrator {
 
       let existingNotesObj: any = {};
       try {
-        const notesStr = latestSub?.notes || sub?.notes;
+        const notesStr = latestSub?.notes;
         if (notesStr) {
           existingNotesObj = JSON.parse(notesStr);
         }

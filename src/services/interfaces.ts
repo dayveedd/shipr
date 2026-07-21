@@ -23,7 +23,7 @@ export interface ISubmissionService {
     notes?: string;
   }): Promise<ApiResponse<Submission>>;
   getSubmissionStatus(submissionId: string): Promise<ApiResponse<Submission>>;
-  triggerAiEvaluation(submissionId: string): Promise<ApiResponse<AiEvaluation>>;
+  triggerAiEvaluation(submissionId: string, overrides?: { githubRepoUrl?: string; deploymentUrl?: string; notes?: string }): Promise<ApiResponse<AiEvaluation>>;
   resubmitProject(submissionId: string, data: {
     githubRepoUrl: string;
     deploymentUrl: string;
