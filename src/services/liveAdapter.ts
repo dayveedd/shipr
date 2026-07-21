@@ -60,6 +60,8 @@ function mapSprintToDomain(row: any): Sprint {
     creatorId: row.creator_id,
     creatorName: row.creator_name,
     isFeatured: row.is_featured,
+    poolAccounts: row.pool_accounts || [],
+    subAccountCode: row.sub_account_code,
   };
 }
 

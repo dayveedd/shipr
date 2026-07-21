@@ -2,6 +2,7 @@
 
 import React, { useEffect, useState, use } from "react";
 import Link from "next/link";
+import { useRouter } from "next/navigation";
 import { Button } from "@/components/ui/Button";
 import { Card } from "@/components/ui/Card";
 import { StatCard } from "@/components/ui/StatCard";
@@ -11,15 +12,18 @@ import { DodChecklist } from "@/components/ui/DodChecklist";
 import { formatNGN } from "@/lib/utils";
 import { sprintService } from "@/services";
 import { Sprint } from "@/types";
-import { ArrowLeft, ShieldCheck, Zap, Trophy, CheckCircle, AlertTriangle } from "lucide-react";
+import { ArrowLeft, ShieldCheck, Zap, Trophy, CheckCircle, AlertTriangle, Copy } from "lucide-react";
+import { supabase } from "@/lib/supabase";
 
 export default function SprintDetailPage({ params }: { params: Promise<{ slug: string }> }) {
   const { slug } = use(params);
+  const router = useRouter();
 
   const [sprint, setSprint] = useState<Sprint | null>(null);
   const [isJoining, setIsJoining] = useState(false);
   const [showCheckoutModal, setShowCheckoutModal] = useState(false);
   const [hasJoined, setHasJoined] = useState(false);
+  const [isCopied, setIsCopied] = useState(false);
 
   useEffect(() => {
     sprintService.getSprintBySlug(slug).then((res) => {
@@ -44,12 +48,41 @@ export default function SprintDetailPage({ params }: { params: Promise<{ slug: s
 
   const handleConfirmPayment = async () => {
     setIsJoining(true);
-    const response = await sprintService.joinSprint(sprint.id);
-    setIsJoining(false);
-    setShowCheckoutModal(false);
+    try {
+      const { data: { session } } = await supabase.auth.getSession();
+      if (!session) {
+        router.push(`/login?redirect=/sprints/${slug}`);
+        return;
+      }
 
-    if (response.success) {
-      setHasJoined(true);
+      // Call transaction initialization server endpoint
+      const res = await fetch("/api/v1/payments/initialize-transaction", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          "Authorization": `Bearer ${session.access_token}`,
+        },
+        body: JSON.stringify({
+          sprintId: sprint.id,
+          redirectUrl: `${window.location.origin}/sprints/${slug}?payment=success`,
+        }),
+      });
+
+      const resData = await res.json();
+      if (!res.ok || !resData.success) {
+        throw new Error(resData.message || "Failed to initialize payment gateway");
+      }
+
+      // Record registration locally in parallel
+      await sprintService.joinSprint(sprint.id);
+
+      // Launch Monnify checkout!
+      window.location.href = resData.data.checkoutUrl;
+    } catch (err: any) {
+      alert(err.message || "Monnify transaction initialization failed");
+    } finally {
+      setIsJoining(false);
+      setShowCheckoutModal(false);
     }
   };
 
@@ -189,36 +222,108 @@ export default function SprintDetailPage({ params }: { params: Promise<{ slug: s
               </button>
             </div>
 
+            <div className="p-4 rounded-xl bg-[#FFF2EC] border border-[#FF5500]/20 space-y-4">
+              <div className="text-center pb-2 border-b border-[#FF5500]/10">
+                <span className="text-[10px] text-zinc-500 font-mono font-bold tracking-wider">Option 1: Direct Escrow Bank Transfer</span>
+              </div>
+              {sprint.poolAccounts && sprint.poolAccounts.length > 0 ? (
+                sprint.poolAccounts.map((acc, i) => (
+                  <div key={i} className="space-y-3">
+                    <div className="flex justify-between text-xs">
+                      <span className="text-zinc-500">Bank Name:</span>
+                      <span className="text-zinc-900 font-bold">{acc.bankName}</span>
+                    </div>
+                    <div className="flex justify-between items-center text-xs">
+                      <span className="text-zinc-500">Account Number:</span>
+                      <div className="flex items-center gap-2">
+                        <span className="text-zinc-950 font-extrabold font-mono text-sm tracking-wider">{acc.accountNumber}</span>
+                        <button
+                          onClick={() => {
+                            navigator.clipboard.writeText(acc.accountNumber);
+                            setIsCopied(true);
+                            setTimeout(() => setIsCopied(false), 2000);
+                          }}
+                          className="p-1 rounded bg-white hover:bg-zinc-100 border border-zinc-200 text-zinc-600 hover:text-zinc-900 transition-colors"
+                          title="Copy Account Number"
+                        >
+                          <Copy className="w-3.5 h-3.5" />
+                        </button>
+                      </div>
+                    </div>
+                    <div className="flex justify-between text-xs">
+                      <span className="text-zinc-500">Account Name:</span>
+                      <span className="text-zinc-900 font-medium">ShipR Escrow Pool</span>
+                    </div>
+                  </div>
+                ))
+              ) : (
+                <div className="space-y-3">
+                  <div className="flex justify-between text-xs">
+                    <span className="text-zinc-500">Bank Name:</span>
+                    <span className="text-zinc-900 font-bold">Wema Bank</span>
+                  </div>
+                  <div className="flex justify-between items-center text-xs">
+                    <span className="text-zinc-500">Account Number:</span>
+                    <div className="flex items-center gap-2">
+                      <span className="text-zinc-950 font-extrabold font-mono text-sm tracking-wider">0010993026</span>
+                      <button
+                        onClick={() => {
+                          navigator.clipboard.writeText("0010993026");
+                          setIsCopied(true);
+                          setTimeout(() => setIsCopied(false), 2000);
+                        }}
+                        className="p-1 rounded bg-white hover:bg-zinc-100 border border-zinc-200 text-zinc-600 hover:text-zinc-900 transition-colors"
+                        title="Copy Account Number"
+                      >
+                        <Copy className="w-3.5 h-3.5" />
+                      </button>
+                    </div>
+                  </div>
+                  <div className="flex justify-between text-xs">
+                    <span className="text-zinc-500">Account Name:</span>
+                    <span className="text-zinc-900 font-medium">ShipR Escrow Pool</span>
+                  </div>
+                </div>
+              )}
+              {isCopied && (
+                <p className="text-[10px] text-emerald-600 font-bold text-center font-mono animate-fadeIn">
+                  ✓ Account number copied to clipboard!
+                </p>
+              )}
+            </div>
+
+            <div className="relative flex py-1 items-center">
+              <div className="flex-grow border-t border-zinc-200"></div>
+              <span className="flex-shrink mx-4 text-[10px] text-zinc-400 font-mono font-bold uppercase">Or Option 2: Pay Online</span>
+              <div className="flex-grow border-t border-zinc-200"></div>
+            </div>
+
             <div className="p-4 rounded-lg bg-zinc-50 border border-zinc-200 space-y-3">
-              <div className="flex justify-between text-body">
-                <span className="text-zinc-500">Sprint:</span>
-                <span className="text-zinc-900 font-bold">{sprint.title}</span>
-              </div>
-              <div className="flex justify-between text-body">
+              <div className="flex justify-between text-xs">
                 <span className="text-zinc-500">Commitment Stake:</span>
-                <span className="text-financial text-zinc-900 text-sm">{formatNGN(sprint.commitmentNgn)}</span>
+                <span className="text-financial text-zinc-900 text-xs font-bold">{formatNGN(sprint.commitmentNgn)}</span>
               </div>
-              <div className="flex justify-between text-body">
-                <span className="text-zinc-500">Payment Provider:</span>
-                <span className="text-zinc-900 font-mono">Monnify Transfer / Card</span>
+              <div className="flex justify-between text-xs">
+                <span className="text-zinc-500">Payment Methods:</span>
+                <span className="text-zinc-900 font-mono">Card / Bank App Checkout</span>
               </div>
             </div>
 
-            <div className="p-3 rounded bg-amber-50 border border-amber-200 text-caption text-amber-900 flex items-start gap-2">
+            <div className="p-3 rounded bg-amber-50 border border-amber-200 text-[10px] text-amber-900 flex items-start gap-2">
               <AlertTriangle className="w-4 h-4 shrink-0 mt-0.5" />
               <span>
-                By committing, you agree that your stake will be locked in the pool until AI evaluation at sprint completion.
+                By committing, your stake is locked in the pool escrow until AI inspection.
               </span>
             </div>
 
             <Button
               size="lg"
               variant="primary"
-              className="w-full"
+              className="w-full bg-zinc-900 hover:bg-zinc-800 border-zinc-900 text-white font-bold"
               isLoading={isJoining}
               onClick={handleConfirmPayment}
             >
-              Confirm Commitment Payment ({formatNGN(sprint.commitmentNgn)})
+              Pay Online via Monnify Card / Transfer
             </Button>
           </Card>
         </div>

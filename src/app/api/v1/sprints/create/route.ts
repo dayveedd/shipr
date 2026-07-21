@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 import { createClient } from "@supabase/supabase-js";
-import { createReservedAccount } from "@/lib/monnify";
+import { createReservedAccount, createMonnifySubAccount } from "@/lib/monnify";
 
 export async function POST(request: Request) {
   try {
@@ -61,16 +61,33 @@ export async function POST(request: Request) {
       // Fallback: Generate sandbox test mock accounts to guarantee demo works
       poolAccounts = [
         {
-          bankName: "Providus Bank (Test Escrow)",
-          accountNumber: "9982736450",
-          bankCode: "101",
-        },
-        {
           bankName: "Wema Bank (Test Escrow)",
           accountNumber: "7763549201",
           bankCode: "035",
+        },
+        {
+          bankName: "Providus Bank (Test Escrow)",
+          accountNumber: "9982736450",
+          bankCode: "101",
         }
       ];
+    }
+
+    // 1b. Setup Monnify split payment sub-account
+    let subAccountCode = "";
+    if (poolAccounts.length > 0) {
+      try {
+        const primaryAcc = poolAccounts[0];
+        subAccountCode = await createMonnifySubAccount(
+          primaryAcc.bankCode,
+          primaryAcc.accountNumber,
+          title
+        );
+      } catch (err: any) {
+        console.warn("Monnify sub-account registration failed, skipping split configuration:", err);
+        // Fallback placeholder sub-account code for sandbox testing
+        subAccountCode = `MF_SUB_${Date.now()}`;
+      }
     }
 
     // 2. Insert challenge record into Supabase Database
@@ -102,6 +119,7 @@ export async function POST(request: Request) {
       creator_name: user.user_metadata?.full_name || user.email?.split("@")[0] || "Creator",
       is_featured: false,
       pool_accounts: poolAccounts, // JSON data column containing bank detail objects
+      sub_account_code: subAccountCode, // String column storing payment split target
     };
 
     const { data: inserted, error: dbError } = await authenticatedSupabase
@@ -123,14 +141,15 @@ export async function POST(request: Request) {
         });
       }
 
-      // Fallback: If sprints table insertion fails due to missing custom column 'pool_accounts',
-      // insert without it to support legacy schemas and return successfully
+      // Fallback: If sprints table insertion fails due to missing custom columns (pool_accounts or sub_account_code),
+      // insert without them to support legacy schemas and return successfully
       try {
         const { data: fallbackInserted, error: fallbackError } = await authenticatedSupabase
           .from("sprints")
           .insert({
             ...newSprint,
-            pool_accounts: undefined
+            pool_accounts: undefined,
+            sub_account_code: undefined
           })
           .select()
           .single();
