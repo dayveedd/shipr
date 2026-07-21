@@ -33,28 +33,23 @@ export const CountdownTimer: React.FC<CountdownTimerProps> = ({
   return (
     <div
       className={cn(
-        "inline-flex items-center rounded-lg bg-[#FFF2EC] border border-[#FF5500]/30 text-timer text-[#FF5500]",
-        sizes[size],
-        timeLeft.isExpired && "text-red-600 border-red-200 bg-red-50",
+        "inline-flex items-center text-[13px] font-medium text-zinc-600",
+        timeLeft.isExpired && "text-red-600",
         className
       )}
     >
       <Clock
         className={cn(
-          "w-4 h-4 text-[#FF5500] animate-pulse",
-          timeLeft.isExpired && "text-red-600 animate-none"
+          "w-3.5 h-3.5 text-zinc-400 mr-1.5 animate-pulse",
+          timeLeft.isExpired && "text-red-500 animate-none"
         )}
       />
       {timeLeft.isExpired ? (
-        <span>SPRINT CLOSED</span>
+        <span className="font-bold">Closed</span>
       ) : (
-        <div className="flex items-center gap-1 font-mono font-tabular">
-          <span className="bg-white border border-[#FF5500]/20 px-1.5 py-0.5 rounded shadow-sm">{timeLeft.hours}h</span>
-          <span>:</span>
-          <span className="bg-white border border-[#FF5500]/20 px-1.5 py-0.5 rounded shadow-sm">{timeLeft.minutes}m</span>
-          <span>:</span>
-          <span className="bg-white border border-[#FF5500]/20 px-1.5 py-0.5 rounded shadow-sm">{timeLeft.seconds}s</span>
-        </div>
+        <span className="font-mono font-semibold tracking-wide">
+          {timeLeft.hours}h : {timeLeft.minutes}m : {timeLeft.seconds}s
+        </span>
       )}
     </div>
   );

@@ -72,7 +72,7 @@ export default function LoginPage() {
               <Flame className="w-5 h-5 text-[#FF5500] shrink-0" />
               <div>
                 <h4 className="text-xs font-bold text-zinc-900">AI Code Verification</h4>
-                <p className="text-caption text-zinc-500">Gemini 1.5 Pro inspects repos & live URLs</p>
+                <p className="text-caption text-zinc-500">OpenRouter AI Judge inspects repos & live URLs</p>
               </div>
             </div>
           </div>

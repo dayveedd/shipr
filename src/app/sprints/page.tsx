@@ -9,7 +9,7 @@ import { CountdownTimer } from "@/components/ui/CountdownTimer";
 import { formatNGN } from "@/lib/utils";
 import { sprintService } from "@/services";
 import { Sprint, SprintStatus, ChallengeCategory } from "@/types";
-import { Search, Flame, Users, CheckCircle, Sparkles, Filter } from "lucide-react";
+import { Search, Flame, Users, CheckCircle, Sparkles, Filter, Plus } from "lucide-react";
 
 export default function SprintDiscoveryPage() {
   const [sprints, setSprints] = useState<Sprint[]>([]);
@@ -47,7 +47,7 @@ export default function SprintDiscoveryPage() {
             Explore Coding Sprints
           </h1>
           <p className="text-body text-zinc-600 mt-1">
-            Commit money on real developer challenges across Frontend, Backend, Full Stack, Mobile, AI & DevOps. Prove your work to Gemini AI Judge and earn pool rewards.
+            Commit money on real developer challenges across Frontend, Backend, Full Stack, Mobile, AI & DevOps. Prove your work to OpenRouter AI Judge and earn pool rewards.
           </p>
         </div>
 
@@ -130,34 +130,39 @@ export default function SprintDiscoveryPage() {
           const slotsLeft = sprint.totalSlots - sprint.filledSlots;
 
           return (
-            <Card key={sprint.id} className="flex flex-col justify-between group p-6 border-zinc-200 shadow-soft-card">
+            <Card key={sprint.id} className="flex flex-col justify-between group p-6 border-zinc-200 shadow-soft-card rounded-none">
               <div>
-                <div className="flex items-center justify-between gap-2 mb-3">
-                  <div className="flex items-center gap-2">
-                    <StatusBadge status={sprint.status} />
-                    <span className="text-[10px] font-mono font-bold px-2 py-0.5 rounded bg-zinc-100 text-[#FF5500] border border-zinc-200 uppercase">
-                      {sprint.category}
-                    </span>
-                  </div>
+                <div className="mb-2.5">
+                  <span className="text-[9px] font-mono font-extrabold px-2 py-0.5 bg-zinc-100 text-zinc-500 uppercase tracking-widest inline-block rounded-none border border-zinc-200/60">
+                    {sprint.category}
+                  </span>
+                </div>
+
+                <div className="flex items-center justify-between gap-2 mb-4">
+                  <StatusBadge status={sprint.status} className="rounded-none text-[10px]" />
                   <CountdownTimer targetDate={sprint.endTime} size="sm" />
                 </div>
 
-                <h3 className="text-h3 text-zinc-900 group-hover:text-[#FF5500] transition-colors line-clamp-1 font-bold">
-                  {sprint.title}
-                </h3>
-                <p className="text-body text-zinc-600 text-xs mt-1.5 line-clamp-2">
+                <Link href={`/sprints/${sprint.slug}`}>
+                  <h3 className="text-h3 text-zinc-900 hover:text-[#FF5500] transition-colors line-clamp-1 font-bold">
+                    {sprint.title}
+                  </h3>
+                </Link>
+                 <p className="text-body text-zinc-600 text-xs mt-1.5 line-clamp-2">
                   {sprint.description}
                 </p>
-
-                {/* Creator Attribution */}
-                {sprint.creatorName && (
-                  <p className="text-caption text-zinc-500 mt-2 font-mono">
-                    Published by: <strong className="text-zinc-800">{sprint.creatorName}</strong>
-                  </p>
-                )}
+                <div className="mt-2.5">
+                  <Link
+                    href={`/sprints/${sprint.slug}`}
+                    className="inline-flex items-center gap-1 px-2.5 py-1 rounded-lg text-[11px] font-bold text-[#FF5500] bg-[#FF5500]/[0.06] hover:bg-[#FF5500]/[0.12] border border-[#FF5500]/10 hover:border-[#FF5500]/20 transition-all duration-200"
+                  >
+                    <span>Read details & win rules</span>
+                    <span className="text-[12px] leading-none">→</span>
+                  </Link>
+                </div>
 
                 {/* Stake Box */}
-                <div className="mt-5 p-3.5 rounded-xl bg-[#FFF2EC]/60 border border-[#FF5500]/20 flex items-center justify-between">
+                <div className="mt-5 p-3.5 rounded-none bg-[#FFF2EC]/60 border border-[#FF5500]/20 flex items-center justify-between">
                   <div>
                     <span className="text-label text-zinc-500 block font-bold">Commitment Stake</span>
                     <span className="text-financial text-lg text-[#FF5500] font-bold">
@@ -189,19 +194,27 @@ export default function SprintDiscoveryPage() {
               </div>
 
               {/* Card Footer Action */}
-              <div className="mt-6 pt-4 border-t border-zinc-200 flex items-center justify-between">
-                <div className="flex items-center gap-1.5 text-caption text-zinc-500">
-                  <Users className="w-3.5 h-3.5 text-zinc-700" />
-                  <span>
-                    <strong className="text-zinc-900 font-bold font-mono font-tabular">{sprint.filledSlots}</strong>/{sprint.totalSlots} Slots ({slotsLeft} left)
-                  </span>
+              <div className="mt-6 pt-4 border-t border-zinc-200 flex flex-col gap-3.5">
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center gap-1.5 text-caption text-zinc-500">
+                    <Users className="w-3.5 h-3.5 text-zinc-700" />
+                    <span>
+                      <strong className="text-zinc-900 font-bold font-mono font-tabular">{sprint.filledSlots}</strong>/{sprint.totalSlots} Slots ({slotsLeft} left)
+                    </span>
+                  </div>
+
+                  <Link href={`/sprints/${sprint.slug}`}>
+                    <Button size="sm" variant="primary">
+                      Join Sprint
+                    </Button>
+                  </Link>
                 </div>
 
-                <Link href={`/sprints/${sprint.slug}`}>
-                  <Button size="sm" variant="primary">
-                    Join Sprint
-                  </Button>
-                </Link>
+                {sprint.creatorName && (
+                  <div className="text-[10px] text-zinc-400 font-mono flex items-center justify-between border-t border-zinc-100 pt-2.5 mt-0.5">
+                    <span>Published by: <strong className="text-zinc-700">@{sprint.creatorName}</strong></span>
+                  </div>
+                )}
               </div>
             </Card>
           );

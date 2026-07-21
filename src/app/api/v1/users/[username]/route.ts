@@ -1,6 +1,8 @@
 import { NextResponse } from "next/server";
 import { MOCK_CURRENT_USER, MOCK_LEADERBOARD } from "@/services/mockData";
 
+export const dynamic = "force-dynamic";
+
 export async function GET(
   request: Request,
   { params }: { params: Promise<{ username: string }> }

@@ -71,7 +71,7 @@ export default function AdminPortalPage() {
         <StatCard
           label="AI Scans Run"
           value="1,420"
-          subtext="Gemini 1.5 Pro Executions"
+          subtext="OpenRouter AI Judge Executions"
           icon={<Cpu className="w-5 h-5 text-[#FF5500]" />}
         />
         <StatCard

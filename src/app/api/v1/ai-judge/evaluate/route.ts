@@ -1,26 +1,32 @@
 import { NextResponse } from "next/server";
-import { MOCK_AI_EVALUATION_PASS } from "@/services/mockData";
+import { EvaluationOrchestrator } from "@/services/orchestration/evaluation-orchestrator.service";
+
+export const dynamic = "force-dynamic";
 
 export async function POST(request: Request) {
   try {
     const body = await request.json();
-    const { submissionId } = body;
+    const { submissionId, sprintId, githubRepoUrl, deploymentUrl, notes } = body;
 
-    // Simulate AI deep code inspection & live deployment DOM scraping delay
-    await new Promise((res) => setTimeout(res, 1200));
+    const authHeader = request.headers.get("Authorization") || undefined;
+
+    const data = await EvaluationOrchestrator.runPipeline({
+      submissionId,
+      sprintId,
+      githubRepoUrl,
+      deploymentUrl,
+      notes,
+      authHeader,
+    });
 
     return NextResponse.json({
       success: true,
-      message: "AI Judge evaluation completed",
-      data: {
-        ...MOCK_AI_EVALUATION_PASS,
-        submissionId: submissionId || "sub_100",
-        evaluatedAt: new Date().toISOString(),
-      },
+      message: "Evaluation orchestrator pipeline completed successfully",
+      data,
     });
-  } catch {
+  } catch (err: any) {
     return NextResponse.json(
-      { success: false, message: "AI evaluation failed" },
+      { success: false, message: err.message || "AI evaluation orchestration pipeline failed" },
       { status: 500 }
     );
   }

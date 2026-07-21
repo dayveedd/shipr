@@ -2,6 +2,8 @@ import { NextResponse } from "next/server";
 import { createClient } from "@supabase/supabase-js";
 import { createReservedAccount } from "@/lib/monnify";
 
+export const dynamic = "force-dynamic";
+
 export async function POST(request: Request) {
   try {
     const authHeader = request.headers.get("Authorization");
@@ -43,6 +45,7 @@ export async function POST(request: Request) {
       durationHours,
       description,
       dodItems,
+      startTime,
     } = body;
 
     if (!title || !description) {
@@ -80,6 +83,11 @@ export async function POST(request: Request) {
       .replace(/[^a-z0-9]+/g, "-")
       .replace(/(^-|-$)/g, "");
 
+    const start = startTime ? new Date(startTime) : new Date();
+    const isUpcoming = startTime && new Date(startTime).getTime() > Date.now();
+    const status = isUpcoming ? "UPCOMING" : "ACTIVE";
+    const end = new Date(start.getTime() + durationHours * 3600 * 1000);
+
     const newSprint = {
       id: newSprintId,
       title,
@@ -90,9 +98,9 @@ export async function POST(request: Request) {
       total_slots: totalSlots,
       filled_slots: 0,
       duration_hours: durationHours,
-      status: "ACTIVE",
-      start_time: new Date().toISOString(),
-      end_time: new Date(Date.now() + durationHours * 3600 * 1000).toISOString(),
+      status,
+      start_time: start.toISOString(),
+      end_time: end.toISOString(),
       total_pool_ngn: 0,
       pass_count: 0,
       fail_count: 0,
@@ -101,7 +109,7 @@ export async function POST(request: Request) {
       creator_id: user.id,
       creator_name: user.user_metadata?.full_name || user.email?.split("@")[0] || "Creator",
       is_featured: false,
-      pool_accounts: poolAccounts, // JSON data column containing bank detail objects
+      pool_accounts: poolAccounts,
     };
 
     const { data: inserted, error: dbError } = await authenticatedSupabase

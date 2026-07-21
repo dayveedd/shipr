@@ -24,10 +24,12 @@ export default function AiEvaluatingPage({
   const searchParams = useSearchParams();
   const submissionId = searchParams.get("submissionId") || "sub_100";
 
-  const [evaluation, setEvaluation] = useState<AiEvaluation | null>(null);
+  const [evaluation, setEvaluation] = useState<any | null>(null);
   const [settlement, setSettlement] = useState<SettlementSummary | null>(null);
   const [stage, setStage] = useState<FinancialWorkflowStage>("SUBMISSION_RECEIVED");
   const [isShareModalOpen, setIsShareModalOpen] = useState(false);
+
+  const [isLoading, setIsLoading] = useState(true);
 
   useEffect(() => {
     userService.getCurrentUser().then((res) => {
@@ -36,41 +38,46 @@ export default function AiEvaluatingPage({
       }
     });
 
+    setStage("AI_REVIEW_IN_PROGRESS");
+
     submissionService.triggerAiEvaluation(submissionId).then((res) => {
-      if (res.success) setEvaluation(res.data);
+      if (res.success && res.data) {
+        setEvaluation(res.data);
+        setIsLoading(false);
+        setStage("AI_REVIEW_COMPLETE");
+
+        const isPass = res.data.result === "PASS";
+
+        if (isPass) {
+          // Dynamic transition through financial stages after review completes
+          setTimeout(() => setStage("SETTLEMENT_PROCESSING"), 1000);
+          setTimeout(() => setStage("PAYMENT_PROCESSING"), 2000);
+          setTimeout(() => setStage("FUNDS_RELEASED"), 3000);
+          setTimeout(() => setStage("PAYMENT_SUCCESSFUL"), 4000);
+        } else {
+          // Immediately stop payment/disbursement steps and transition to failed stage
+          setTimeout(() => setStage("SUBMISSION_FAILED"), 1500);
+        }
+      } else {
+        setIsLoading(false);
+        setStage("SUBMISSION_RECEIVED");
+      }
     });
+
     settlementService.getSettlementSummary("spr_react_01").then((res) => {
       if (res.success) setSettlement(res.data);
     });
-
-    // Simulate Asynchronous Financial Lifecycle Stage Transitions
-    const t1 = setTimeout(() => setStage("AI_REVIEW_IN_PROGRESS"), 2000);
-    const t2 = setTimeout(() => setStage("AI_REVIEW_COMPLETE"), 4500);
-    const t3 = setTimeout(() => setStage("SETTLEMENT_PROCESSING"), 6500);
-    const t4 = setTimeout(() => setStage("PAYMENT_PROCESSING"), 8500);
-    const t5 = setTimeout(() => setStage("FUNDS_RELEASED"), 10500);
-    const t6 = setTimeout(() => setStage("PAYMENT_SUCCESSFUL"), 12500);
-
-    return () => {
-      clearTimeout(t1);
-      clearTimeout(t2);
-      clearTimeout(t3);
-      clearTimeout(t4);
-      clearTimeout(t5);
-      clearTimeout(t6);
-    };
   }, [submissionId]);
 
-  const currentEval = evaluation || MOCK_AI_EVALUATION_PASS;
-  const isSettled = stage === "PAYMENT_SUCCESSFUL";
+  const isSettled = stage === "PAYMENT_SUCCESSFUL" || stage === "SUBMISSION_FAILED";
 
   return (
-    <div className="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8 py-12 space-y-8">
+    <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-12 space-y-8">
       {/* Header */}
       <div className="text-center space-y-2">
         <div className="inline-flex items-center gap-2 px-3.5 py-1.5 rounded-full bg-[#FFF2EC] border border-[#FF5500]/30 text-badge text-[#FF5500] font-bold">
           <Flame className="w-4 h-4 fill-[#FF5500]" />
-          <span>GEMINI 1.5 PRO & MONNIFY ESCROW ENGINE</span>
+          <span>OPENROUTER & MONNIFY ESCROW ENGINE</span>
         </div>
         <h1 className="text-h1 text-zinc-900 font-extrabold font-sans">
           Evaluating Proof of Work & Settling Pool
@@ -80,47 +87,52 @@ export default function AiEvaluatingPage({
         </p>
       </div>
 
-      {/* Stacked Vertical Layout (Full Width Terminal Top, Financial Timeline Below) */}
-      <div className="space-y-8">
-        {/* 1. Full-Width Light Terminal Console (Top) */}
-        <div className="w-full">
+      {/* Side-by-Side Two-Column Grid Layout */}
+      <div className="grid grid-cols-1 lg:grid-cols-12 gap-8 items-start">
+        {/* Left Column: Light Terminal Console (7/12 Width) */}
+        <div className="lg:col-span-7 w-full">
           <TerminalView
-            reasoning={currentEval.reasoning}
-            confidenceScore={currentEval.confidenceScore}
-            result={currentEval.result}
+            reasoning={evaluation?.reasoning || []}
+            confidenceScore={evaluation?.confidenceScore || 0}
+            result={evaluation?.result || "FAIL"}
+            timelineEvents={evaluation?.timeline || []}
           />
         </div>
 
-        {/* 2. Full-Width Asynchronous Financial Timeline (Stacked Below) */}
-        <Card className="p-6 border-zinc-200 shadow-soft-card bg-white w-full">
-          <FinancialWorkflowTimeline
-            currentStage={stage}
-            payoutNgn={settlement?.totalReturnPerPassNgn || 6250}
-          />
-        </Card>
+        {/* Right Column: Asynchronous Financial Timeline (5/12 Width) */}
+        <div className="lg:col-span-5 w-full">
+          <Card className="p-6 border-zinc-200 shadow-soft-card bg-white w-full">
+            <FinancialWorkflowTimeline
+              currentStage={stage}
+              payoutNgn={settlement?.totalReturnPerPassNgn || 6250}
+            />
+          </Card>
+        </div>
       </div>
 
       {/* 3. Final Verdict & Settlement Payout Card */}
-      {isSettled && (
+      {isSettled && evaluation && (
         <div className="space-y-6 animate-fadeIn">
           <Card className="p-8 border-2 border-emerald-500 bg-emerald-50/20 shadow-2xl relative overflow-hidden">
             <div className="flex flex-col md:flex-row md:items-center justify-between gap-6">
               <div className="space-y-2">
                 <div className="flex items-center gap-3">
-                  <StatusBadge status="PASS" />
+                  <StatusBadge status={evaluation.result} />
                   <span className="text-caption font-mono text-zinc-500">
-                    Confidence Score: <strong className="text-zinc-900">{currentEval.confidenceScore}%</strong>
+                    Confidence Score: <strong className="text-zinc-900">{evaluation.confidenceScore}%</strong>
                   </span>
                 </div>
                 <h2 className="text-h2 text-zinc-900 font-extrabold">
-                  Sprint Passed & Funds Deposited!
+                  {evaluation.result === "PASS" ? "Sprint Passed & Funds Deposited!" : "Sprint Completed with Failures"}
                 </h2>
                 <p className="text-body text-zinc-600">
-                  Your proof of work satisfied all required Definition of Done criteria. Initial stake refund and failed pool bonus have been settled via Monnify.
+                  {evaluation.result === "PASS"
+                    ? "Your proof of work satisfied all required Definition of Done criteria. Initial stake refund and failed pool bonus have been settled via Monnify."
+                    : "Some of the Creator's required Definition of Done checks could not be verified by the AI Judge. Please check the detailed feedback report below."}
                 </p>
               </div>
 
-              {settlement && (
+              {settlement && evaluation.result === "PASS" && (
                 <div className="p-5 rounded-2xl bg-white border border-emerald-300 text-center space-y-1 shadow-soft-card shrink-0">
                   <span className="text-label text-zinc-500 block">Total Disbursed Payout</span>
                   <span className="text-financial text-3xl text-emerald-600 font-bold">
@@ -137,9 +149,13 @@ export default function AiEvaluatingPage({
             <div className="mt-8 pt-6 border-t border-zinc-200/80 space-y-3">
               <h4 className="text-label text-zinc-900 font-bold">AI Detailed Inspection Report</h4>
               <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-                {currentEval.reasoning.map((item) => (
+                {evaluation.reasoning.map((item: any) => (
                   <div key={item.itemId} className="p-3 rounded-lg bg-white border border-zinc-200 flex items-start gap-2.5 shadow-sm">
-                    <CheckCircle className="w-4 h-4 text-emerald-500 mt-0.5 shrink-0" />
+                    {item.isPassed ? (
+                      <CheckCircle className="w-4 h-4 text-emerald-500 mt-0.5 shrink-0" />
+                    ) : (
+                      <span className="text-red-500 font-bold shrink-0 mt-0.5">✗</span>
+                    )}
                     <div>
                       <p className="text-xs font-bold text-zinc-900">{item.itemTitle}</p>
                       <p className="text-[11px] text-zinc-600 mt-0.5">{item.details}</p>
@@ -176,7 +192,7 @@ export default function AiEvaluatingPage({
         submissionId={submissionId}
         sprintTitle={settlement?.sprintTitle || "React Landing Page 48h Sprint"}
         builderName="Sarah Chen"
-        verdict="PASS"
+        verdict={evaluation?.result || "FAIL"}
         payoutNgn={settlement?.totalReturnPerPassNgn || 6250}
       />
     </div>

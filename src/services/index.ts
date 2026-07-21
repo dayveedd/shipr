@@ -20,7 +20,7 @@ import {
   ILeaderboardService,
 } from "./interfaces";
 
-const useMock = process.env.NEXT_PUBLIC_USE_MOCK !== "false";
+const useMock = process.env.NEXT_PUBLIC_USE_MOCK === "true";
 
 export const sprintService: ISprintService = useMock
   ? new MockSprintService()

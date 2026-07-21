@@ -67,11 +67,22 @@ export default function SubmissionPage({ params }: { params: Promise<{ slug: str
           Submit Proof of Work
         </h1>
         <p className="text-body text-zinc-600">
-          Provide your GitHub repository and live deployment URL. Gemini AI Judge will inspect your code against the Definition of Done.
+          Provide your GitHub repository and live deployment URL. OpenRouter AI Judge will inspect your code against the Definition of Done.
         </p>
       </div>
 
       <Card className="p-6 sm:p-8 space-y-6 border-zinc-300 shadow-soft-card">
+        <div className="p-4 rounded-xl bg-orange-50 border border-orange-200 text-orange-800 flex items-start gap-3 text-sm">
+          <AlertCircle className="w-5 h-5 text-orange-600 shrink-0 mt-0.5" />
+          <div className="space-y-1">
+            <p className="font-bold">Before you submit, please ensure:</p>
+            <ul className="list-disc list-inside space-y-1 text-xs text-orange-700">
+              <li>Your GitHub repository is set to <strong>Public</strong> so our AI scanner can read the files.</li>
+              <li>Your deployment link is active and does not require a login page to view.</li>
+            </ul>
+          </div>
+        </div>
+
         {error && (
           <div className="p-4 rounded-xl bg-red-50 border border-red-200 text-red-700 flex items-center gap-3 text-sm">
             <AlertCircle className="w-5 h-5 text-red-500 shrink-0" />

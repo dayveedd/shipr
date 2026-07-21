@@ -42,39 +42,27 @@ export default function DashboardPage() {
               stakeNgn: Number(sub.sprints?.commitment_ngn || 5000),
               submittedAt: new Date(sub.submitted_at).toLocaleDateString(),
               stage: sub.stage,
+              version: sub.version || 1,
               payoutNgn: sub.stage === "PAYMENT_SUCCESSFUL" ? Number(sub.sprints?.commitment_ngn || 5000) * 1.25 : 0,
             }));
             setSubmissions(mapped);
+
+            // Compute live user stats from actual DB records
+            const totalEarned = mapped.reduce((acc: number, curr: any) => acc + (curr.payoutNgn || 0), 0);
+            const totalSubs = mapped.length;
+            const passSubs = mapped.filter((s: any) => s.stage === "PAYMENT_SUCCESSFUL").length;
+            const successRate = totalSubs > 0 ? Math.round((passSubs / totalSubs) * 100) : 0;
+
+            setUser((prev) => prev ? {
+              ...prev,
+              sprintsCompleted: totalSubs,
+              successRate: successRate,
+              totalEarnedNgn: totalEarned,
+            } : null);
           }
         } catch (subErr) {
-          console.error("Error loading submissions, using mock fallback:", subErr);
-          const mockUserSubmissions = [
-            {
-              id: "sub_101",
-              sprintTitle: "React Landing Page 48h Sprint",
-              stakeNgn: 5000,
-              submittedAt: "2 hours ago",
-              stage: "PAYMENT_SUCCESSFUL" as const,
-              payoutNgn: 6250,
-            },
-            {
-              id: "sub_102",
-              sprintTitle: "Full-Stack Analytics Dashboard",
-              stakeNgn: 15000,
-              submittedAt: "30 minutes ago",
-              stage: "PAYMENT_PROCESSING" as const,
-              payoutNgn: 18750,
-            },
-            {
-              id: "sub_103",
-              sprintTitle: "Next.js 15 Server Actions & Auth API",
-              stakeNgn: 10000,
-              submittedAt: "Just now",
-              stage: "AI_REVIEW_IN_PROGRESS" as const,
-              payoutNgn: 0,
-            },
-          ];
-          setSubmissions(mockUserSubmissions);
+          console.error("Error loading submissions:", subErr);
+          setSubmissions([]);
         } finally {
           setIsLoadingSubmissions(false);
         }
@@ -207,7 +195,7 @@ export default function DashboardPage() {
         <StatCard
           label="AI Success Rate"
           value={`${user?.successRate || 0}%`}
-          subtext="Gemini 1.5 Pro verdict"
+          subtext="OpenRouter AI Judge verdict"
           icon={<CheckCircle2 className="w-5 h-5 text-[#FF5500]" />}
         />
       </div>
@@ -229,6 +217,7 @@ export default function DashboardPage() {
               <thead className="bg-zinc-100 text-zinc-900 text-xs uppercase font-mono font-bold border-b border-zinc-200">
                 <tr>
                   <th className="px-6 py-3.5">Sprint Title</th>
+                  <th className="px-6 py-3.5">Attempt</th>
                   <th className="px-6 py-3.5">Stake Locked</th>
                   <th className="px-6 py-3.5">Submitted</th>
                   <th className="px-6 py-3.5">Financial Lifecycle Stage</th>
@@ -238,14 +227,14 @@ export default function DashboardPage() {
               <tbody className="divide-y divide-zinc-200 bg-white">
                 {isLoadingSubmissions ? (
                   <tr>
-                    <td colSpan={5} className="px-6 py-10 text-center font-mono text-xs">
+                    <td colSpan={6} className="px-6 py-10 text-center font-mono text-xs">
                       <Loader2 className="w-5 h-5 animate-spin mx-auto text-[#FF5500] mb-2" />
                       <span>Loading submissions...</span>
                     </td>
                   </tr>
                 ) : submissions.length === 0 ? (
                   <tr>
-                    <td colSpan={5} className="px-6 py-10 text-center text-zinc-500 font-mono text-xs">
+                    <td colSpan={6} className="px-6 py-10 text-center text-zinc-500 font-mono text-xs">
                       No proof submissions found. Join a sprint to get started!
                     </td>
                   </tr>
@@ -254,6 +243,9 @@ export default function DashboardPage() {
                     <tr key={sub.id} className="hover:bg-[#FFF2EC]/30 transition-colors">
                       <td className="px-6 py-4 font-bold text-zinc-900">
                         {sub.sprintTitle}
+                      </td>
+                      <td className="px-6 py-4 font-mono text-xs font-bold text-[#FF5500]">
+                        Attempt v{sub.version || 1}
                       </td>
                       <td className="px-6 py-4 font-mono font-bold text-[#FF5500]">
                         {formatNGN(sub.stakeNgn)}
@@ -265,8 +257,8 @@ export default function DashboardPage() {
                         {getStageBadge(sub.stage)}
                       </td>
                       <td className="px-6 py-4 text-right">
-                        <Link href={`/sprints/react-landing-page-sprint/evaluating?submissionId=${sub.id}`}>
-                          <Button size="sm" variant="secondary">
+                        <Link href={`/proof/${sub.id}`}>
+                          <Button size="sm" variant="secondary" className="rounded-none">
                             View Lifecycle
                           </Button>
                         </Link>

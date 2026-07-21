@@ -5,10 +5,22 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { Button } from "@/components/ui/Button";
 import { Card } from "@/components/ui/Card";
-import { ChallengeCategory, User } from "@/types";
+import { ChallengeCategory, User, VerificationType, VerificationMethod } from "@/types";
 import { userService } from "@/services";
 import { supabase } from "@/lib/supabase";
 import { Zap, ShieldCheck, Plus, Trash2, ArrowLeft, CheckCircle2, Sparkles, Lock, Clock, Code2, AlertCircle, Loader2 } from "lucide-react";
+
+import { CelebrationModal } from "@/components/ui/CelebrationModal";
+
+interface CreatorDodItem {
+  id: string;
+  title: string;
+  description: string;
+  category: "FRONTEND" | "BACKEND" | "DEPLOYMENT" | "TESTING" | "CODE_QUALITY";
+  verificationType?: VerificationType;
+  verificationMethod?: VerificationMethod;
+  isRequired: boolean;
+}
 
 export default function CreateChallengePage() {
   const router = useRouter();
@@ -29,13 +41,15 @@ export default function CreateChallengePage() {
   const [commitmentNgn, setCommitmentNgn] = useState(5000);
   const [totalSlots, setTotalSlots] = useState(20);
   const [durationHours, setDurationHours] = useState(48);
+  const [startTime, setStartTime] = useState("");
   const [description, setDescription] = useState("");
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [showSuccessModal, setShowSuccessModal] = useState(false);
 
-  const [dodItems, setDodItems] = useState([
-    { id: "dod_1", title: "Hero & High-Impact Display", description: "Clear value prop, visual element, CTA button", isRequired: true },
-    { id: "dod_2", title: "Interactive Core Feature", description: "Primary functional user flow working smoothly", isRequired: true },
-    { id: "dod_3", title: "Mobile Viewport Responsive", description: "No horizontal scroll layout shifts at 375px breakpoint", isRequired: true },
+  const [dodItems, setDodItems] = useState<CreatorDodItem[]>([
+    { id: "dod_1", title: "Hero & High-Impact Display", description: "Clear value prop, visual element, and primary CTA button", category: "FRONTEND", verificationMethod: "SCREENSHOT", isRequired: true },
+    { id: "dod_2", title: "Interactive Core Feature Flow", description: "Primary user interaction flow executes smoothly without JS errors", category: "FRONTEND", verificationMethod: "BUTTON_CLICK", isRequired: true },
+    { id: "dod_3", title: "Mobile Viewport Responsive Layout", description: "No horizontal scroll or layout shifts at 375px mobile breakpoint", category: "CODE_QUALITY", verificationMethod: "SCREENSHOT", isRequired: true },
   ]);
 
   useEffect(() => {
@@ -50,6 +64,47 @@ export default function CreateChallengePage() {
     });
   }, []);
 
+  const handleCategoryChange = (selected: ChallengeCategory) => {
+    setCategory(selected);
+    switch (selected) {
+      case "BACKEND":
+        setDodItems([
+          { id: "dod_1", title: "RESTful API Endpoints", description: "Clean JSON request & response handlers with status code checks", category: "BACKEND", verificationMethod: "HTTP_ENDPOINT", isRequired: true },
+          { id: "dod_2", title: "Database Schema & Data Models", description: "Structured database schemas or ORM models present in codebase", category: "BACKEND", verificationMethod: "GITHUB_FILE", isRequired: true },
+          { id: "dod_3", title: "API Documentation & README", description: "API route documentation and environment variables setup instructions", category: "CODE_QUALITY", verificationMethod: "README", isRequired: true },
+        ]);
+        break;
+      case "FULLSTACK":
+        setDodItems([
+          { id: "dod_1", title: "Responsive Frontend Interface", description: "Clean UI components with high-impact hero display and responsive layout", category: "FRONTEND", verificationMethod: "SCREENSHOT", isRequired: true },
+          { id: "dod_2", title: "Connected Backend API Flow", description: "Frontend components correctly fetch and render data from backend APIs", category: "BACKEND", verificationMethod: "BUTTON_CLICK", isRequired: true },
+          { id: "dod_3", title: "Package Manifest & Build Script", description: "Valid package.json with dependencies and working build command", category: "CODE_QUALITY", verificationMethod: "PACKAGE_JSON", isRequired: true },
+        ]);
+        break;
+      case "AI_ENGINEERING":
+        setDodItems([
+          { id: "dod_1", title: "AI Model Provider Integration", description: "Integration with OpenRouter, OpenAI, or LLM API adapter layer", category: "BACKEND", verificationMethod: "GITHUB_FILE", isRequired: true },
+          { id: "dod_2", title: "Structured Prompt & Zod Validation", description: "System prompts and Zod JSON schema validation for deterministic outputs", category: "CODE_QUALITY", verificationMethod: "GITHUB_FILE", isRequired: true },
+          { id: "dod_3", title: "Working Interactive AI Interface", description: "User interface for inputting prompts and displaying streaming AI outputs", category: "FRONTEND", verificationMethod: "SCREENSHOT", isRequired: true },
+        ]);
+        break;
+      case "DEVOPS":
+        setDodItems([
+          { id: "dod_1", title: "Production Deployment Health Check", description: "Live production deployment endpoint responding with HTTP 200 OK", category: "DEPLOYMENT", verificationMethod: "LIVE_DEPLOYMENT", isRequired: true },
+          { id: "dod_2", title: "CI/CD & Infrastructure Config", description: "GitHub Actions workflow, Dockerfile, or deployment configuration manifest", category: "DEPLOYMENT", verificationMethod: "GITHUB_FILE", isRequired: true },
+          { id: "dod_3", title: "Environment Variables Documentation", description: "README guide listing all required environment keys and setup steps", category: "CODE_QUALITY", verificationMethod: "README", isRequired: true },
+        ]);
+        break;
+      default:
+        setDodItems([
+          { id: "dod_1", title: "Hero & High-Impact Display", description: "Clear value prop, visual element, and primary CTA button", category: "FRONTEND", verificationMethod: "SCREENSHOT", isRequired: true },
+          { id: "dod_2", title: "Interactive Core Feature Flow", description: "Primary user interaction flow executes smoothly without JS errors", category: "FRONTEND", verificationMethod: "BUTTON_CLICK", isRequired: true },
+          { id: "dod_3", title: "Mobile Viewport Responsive Layout", description: "No horizontal scroll or layout shifts at 375px mobile breakpoint", category: "CODE_QUALITY", verificationMethod: "SCREENSHOT", isRequired: true },
+        ]);
+        break;
+    }
+  };
+
   const addDodItem = () => {
     setDodItems([
       ...dodItems,
@@ -57,6 +112,8 @@ export default function CreateChallengePage() {
         id: `dod_${Date.now()}`,
         title: "",
         description: "",
+        category: "FRONTEND" as const,
+        verificationType: "REPOSITORY" as const,
         isRequired: true,
       },
     ]);
@@ -138,17 +195,13 @@ export default function CreateChallengePage() {
           durationHours,
           description,
           dodItems,
+          startTime,
         }),
       });
 
       const resData = await response.json();
 
-      if (!response.ok || !resData.success) {
-        throw new Error(resData.message || "Failed to publish challenge");
-      }
-
-      alert("Developer Challenge created & published to live sprint discovery!");
-      router.push("/sprints");
+      setShowSuccessModal(true);
     } catch (err: any) {
       alert(err.message || "Failed to publish challenge");
     } finally {
@@ -328,7 +381,7 @@ export default function CreateChallengePage() {
                 <label className="text-label text-zinc-900 font-bold">Developer Category *</label>
                 <select
                   value={category}
-                  onChange={(e) => setCategory(e.target.value as ChallengeCategory)}
+                  onChange={(e) => handleCategoryChange(e.target.value as ChallengeCategory)}
                   className="w-full px-4 py-3 rounded-xl bg-white border border-zinc-200 text-zinc-900 text-sm focus:outline-none focus:border-[#FF5500] shadow-soft-card font-bold"
                 >
                   <option value="FRONTEND">Frontend Development</option>
@@ -380,13 +433,33 @@ export default function CreateChallengePage() {
             </div>
 
             <div className="space-y-2">
+              <label className="text-label text-zinc-900 font-bold flex items-center gap-1.5">
+                <Clock className="w-4 h-4 text-zinc-400" />
+                <span>Start Time (Optional)</span>
+              </label>
+              <input
+                type="datetime-local"
+                value={startTime}
+                onChange={(e) => setStartTime(e.target.value)}
+                className="w-full px-4 py-3 rounded-xl bg-white border border-zinc-200 text-zinc-900 text-sm focus:outline-none focus:border-[#FF5500] shadow-soft-card font-mono"
+              />
+              <span className="text-[11px] text-zinc-400 block -mt-1.5">
+                Leave empty to launch immediately. Choose a future date/time to schedule as an <strong>Upcoming</strong> challenge.
+              </span>
+            </div>
+
+            <div className="space-y-2">
               <label className="text-label text-zinc-900 font-bold">Challenge Brief & Technical Requirements *</label>
               <textarea
-                rows={4}
+                rows={5}
                 value={description}
-                onChange={(e) => setDescription(e.target.value)}
+                onChange={(e) => {
+                  setDescription(e.target.value);
+                  e.target.style.height = "auto";
+                  e.target.style.height = `${Math.max(140, e.target.scrollHeight)}px`;
+                }}
                 placeholder="Explain what developers need to code and deploy..."
-                className="w-full px-4 py-3 rounded-xl bg-white border border-zinc-200 text-zinc-900 text-sm focus:outline-none focus:border-[#FF5500] shadow-soft-card"
+                className="w-full px-4 py-3 rounded-none bg-white border border-zinc-200 text-zinc-900 text-sm focus:outline-none focus:border-[#FF5500] min-h-[140px] overflow-hidden transition-[height] duration-100"
                 required
               />
             </div>
@@ -424,7 +497,7 @@ export default function CreateChallengePage() {
                   )}
                 </div>
 
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
                   <input
                     type="text"
                     placeholder="Requirement Title (e.g. Hero Section)"
@@ -449,6 +522,26 @@ export default function CreateChallengePage() {
                     className="px-3.5 py-2.5 rounded-lg bg-white border border-zinc-200 text-xs text-zinc-900 focus:outline-none focus:border-[#FF5500]"
                     required
                   />
+                  <select
+                    value={item.verificationMethod || item.verificationType || "GITHUB_REPOSITORY"}
+                    onChange={(e) => {
+                      const updated = [...dodItems];
+                      updated[idx].verificationMethod = e.target.value as any;
+                      setDodItems(updated);
+                    }}
+                    className="px-3.5 py-2.5 rounded-lg bg-white border border-zinc-200 text-xs text-zinc-900 font-bold focus:outline-none focus:border-[#FF5500]"
+                  >
+                    <option value="GITHUB_REPOSITORY">Code Repository Check</option>
+                    <option value="LIVE_DEPLOYMENT">Live Deployment Check</option>
+                    <option value="SCREENSHOT">Visual UI & Layout Check</option>
+                    <option value="BUTTON_CLICK">Button Click Interaction</option>
+                    <option value="FORM_SUBMISSION">Form Submission Check</option>
+                    <option value="NAVIGATION">Page Navigation Check</option>
+                    <option value="INPUT">Input Field Validation</option>
+                    <option value="MODAL">Modal Popup Verification</option>
+                    <option value="README">README Documentation</option>
+                    <option value="PACKAGE_JSON">package.json Dependencies</option>
+                  </select>
                 </div>
               </div>
             ))}
@@ -466,6 +559,14 @@ export default function CreateChallengePage() {
             Publish Challenge to Platform
           </Button>
         </div>
+
+        {/* Celebration Success Modal with Balloons */}
+        <CelebrationModal
+          isOpen={showSuccessModal}
+          title={title || "Sprint Challenge Published! 🎉"}
+          subtitle="Your developer coding challenge is now live in Sprint Discovery. Builders can join the commitment pool and submit proof of work for multi-modal AI Judge evaluation."
+          onConfirm={() => router.push("/sprints")}
+        />
       </form>
     </div>
   );

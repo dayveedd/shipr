@@ -36,12 +36,7 @@ export default function LandingPage() {
 
       {/* Hero Section */}
       <section className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 pt-16 pb-20 text-center">
-        <motion.div
-          initial={{ opacity: 0, y: 20 }}
-          animate={{ opacity: 1, y: 0 }}
-          transition={{ duration: 0.5 }}
-          className="space-y-6 max-w-4xl mx-auto"
-        >
+        <div className="space-y-6 max-w-4xl mx-auto">
           {/* Platform Badge */}
           <div className="inline-flex items-center gap-2 px-3.5 py-1.5 rounded-full bg-[#FFF2EC] border border-[#FF5500]/30 text-badge text-[#FF5500] shadow-orange-glow font-bold">
             <Zap className="w-3.5 h-3.5 fill-[#FF5500]" />
@@ -72,7 +67,7 @@ export default function LandingPage() {
               </Button>
             </Link>
           </div>
-        </motion.div>
+          </div>
 
         {/* Global Live Stats Strip */}
         <div className="grid grid-cols-2 md:grid-cols-4 gap-4 max-w-5xl mx-auto mt-16">
@@ -86,7 +81,7 @@ export default function LandingPage() {
           <StatCard
             label="AI Verification Rate"
             value="98.4%"
-            subtext="Gemini 1.5 Pro visual scanner"
+            subtext="OpenRouter AI Judge visual scanner"
             icon={<Cpu className="w-5 h-5 text-[#FF5500]" />}
           />
           <StatCard
@@ -240,7 +235,7 @@ export default function LandingPage() {
             </div>
             <h3 className="text-h3 text-zinc-900">AI Evaluation & Payout</h3>
             <p className="text-body text-zinc-600">
-              Gemini AI Judge inspects repo code and live deployment against the Definition of Done. PASSers get initial stake + bonus pool split!
+              OpenRouter AI Judge inspects repo code and live deployment against the Definition of Done. PASSers get initial stake + bonus pool split!
             </p>
           </Card>
         </div>

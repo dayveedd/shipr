@@ -55,7 +55,7 @@
 
 /* ShipR Typography System v3.0 Responsive Headings */
 .text-hero-display {
-  font-family: var(--font-sans);
+  font-family: var(--font-sans), system-ui, -apple-system, sans-serif;
   font-size: 3rem; /* 48px mobile */
   font-weight: 900;
   letter-spacing: -0.04em;
@@ -75,7 +75,7 @@
 }
 
 .text-h1 {
-  font-family: var(--font-sans);
+  font-family: var(--font-sans), system-ui, -apple-system, sans-serif;
   font-size: 2.25rem; /* 36px */
   font-weight: 800;
   letter-spacing: -0.03em;
@@ -89,7 +89,7 @@
 }
 
 .text-h2 {
-  font-family: var(--font-sans);
+  font-family: var(--font-sans), system-ui, -apple-system, sans-serif;
   font-size: 1.75rem; /* 28px */
   font-weight: 700;
   letter-spacing: -0.02em;
@@ -103,7 +103,7 @@
 }
 
 .text-h3 {
-  font-family: var(--font-sans);
+  font-family: var(--font-sans), system-ui, -apple-system, sans-serif;
   font-size: 1.25rem; /* 20px */
   font-weight: 700;
   letter-spacing: -0.01em;
@@ -111,28 +111,28 @@
 }
 
 .text-body-lg {
-  font-family: var(--font-sans);
+  font-family: var(--font-sans), system-ui, -apple-system, sans-serif;
   font-size: 1.125rem; /* 18px */
   font-weight: 400;
   line-height: 1.6;
 }
 
 .text-body {
-  font-family: var(--font-sans);
+  font-family: var(--font-sans), system-ui, -apple-system, sans-serif;
   font-size: 0.875rem; /* 14px */
   font-weight: 400;
   line-height: 1.5;
 }
 
 .text-caption {
-  font-family: var(--font-sans);
+  font-family: var(--font-sans), system-ui, -apple-system, sans-serif;
   font-size: 0.75rem; /* 12px */
   font-weight: 500;
   line-height: 1.4;
 }
 
 .text-label {
-  font-family: var(--font-sans);
+  font-family: var(--font-sans), system-ui, -apple-system, sans-serif;
   font-size: 0.75rem; /* 12px */
   font-weight: 600;
   letter-spacing: 0.05em;
@@ -140,7 +140,7 @@
 }
 
 .text-badge {
-  font-family: var(--font-sans);
+  font-family: var(--font-sans), system-ui, -apple-system, sans-serif;
   font-size: 0.75rem; /* 12px */
   font-weight: 600;
   letter-spacing: 0.05em;
@@ -148,34 +148,34 @@
 }
 
 .text-button {
-  font-family: var(--font-sans);
+  font-family: var(--font-sans), system-ui, -apple-system, sans-serif;
   font-size: 0.875rem; /* 14px */
   font-weight: 600;
   letter-spacing: 0em;
 }
 
 .text-nav {
-  font-family: var(--font-sans);
+  font-family: var(--font-sans), system-ui, -apple-system, sans-serif;
   font-size: 0.875rem; /* 14px */
   font-weight: 600;
   letter-spacing: 0em;
 }
 
 .text-financial {
-  font-family: var(--font-mono);
+  font-family: var(--font-mono), ui-monospace, monospace;
   font-weight: 800;
   font-variant-numeric: tabular-nums lining-nums;
   letter-spacing: -0.02em;
 }
 
 .text-timer {
-  font-family: var(--font-mono);
+  font-family: var(--font-mono), ui-monospace, monospace;
   font-weight: 700;
   font-variant-numeric: tabular-nums lining-nums;
 }
 
 .text-terminal-log {
-  font-family: var(--font-mono);
+  font-family: var(--font-mono), ui-monospace, monospace;
   font-size: 0.8125rem; /* 13px */
   font-weight: 400;
   line-height: 1.6;
@@ -217,4 +217,37 @@
   background: linear-gradient(135deg, #FF5500 0%, #E04B00 100%);
   -webkit-background-clip: text;
   -webkit-text-fill-color: transparent;
+}
+
+@keyframes floatUp {
+  0% {
+    transform: translateY(100vh) scale(0.7) rotate(0deg);
+    opacity: 1;
+  }
+  80% {
+    opacity: 0.9;
+  }
+  100% {
+    transform: translateY(-20vh) scale(1.1) rotate(15deg);
+    opacity: 0;
+  }
+}
+
+@keyframes scaleUp {
+  0% {
+    transform: scale(0.85);
+    opacity: 0;
+  }
+  100% {
+    transform: scale(1);
+    opacity: 1;
+  }
+}
+
+.animate-floatUp {
+  animation: floatUp ease-out forwards;
+}
+
+.animate-scaleUp {
+  animation: scaleUp 0.3s cubic-bezier(0.16, 1, 0.3, 1) forwards;
 }

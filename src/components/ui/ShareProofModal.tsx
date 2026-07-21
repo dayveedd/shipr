@@ -35,7 +35,7 @@ export const ShareProofModal: React.FC<ShareProofModalProps> = ({
 
   const shareText = verdict === "PASS"
     ? `🔥 I just passed the 48h "${sprintTitle}" coding sprint on @ShipR_Build! AI verified my proof of work and unlocked ${payoutNgn ? `₦${payoutNgn.toLocaleString()}` : "my commitment pool reward"}. Execution pays!`
-    : `🚀 Built and shipped "${sprintTitle}" in 48 hours on @ShipR_Build! Check out my proof of work verified by Gemini AI Judge:`;
+    : `🚀 Built and shipped "${sprintTitle}" in 48 hours on @ShipR_Build! Check out my proof of work verified by OpenRouter AI Judge:`;
 
   const handleNativeShare = async () => {
     if (navigator.share) {

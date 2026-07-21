@@ -99,6 +99,22 @@ export class MockSubmissionService implements ISubmissionService {
     await delay(1200);
     return { success: true, message: "AI evaluation completed", data: MOCK_AI_EVALUATION_PASS };
   }
+
+  async resubmitProject(submissionId: string, data: { githubRepoUrl: string; deploymentUrl: string; notes?: string }): Promise<ApiResponse<Submission>> {
+    await delay(500);
+    const updatedSubmission: Submission = {
+      id: submissionId,
+      sprintId: "spr_react_01",
+      userId: currentUser?.id || "usr_1",
+      githubRepoUrl: data.githubRepoUrl,
+      deploymentUrl: data.deploymentUrl,
+      notes: data.notes,
+      submittedAt: new Date().toISOString(),
+      stage: "AI_REVIEW_IN_PROGRESS",
+      version: 2,
+    };
+    return { success: true, message: "Project resubmitted successfully (Attempt v2)", data: updatedSubmission };
+  }
 }
 
 export class MockUserService implements IUserService {

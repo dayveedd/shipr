@@ -43,7 +43,16 @@ export const RankBadge: React.FC<RankBadgeProps> = ({
     },
   };
 
-  const config = rankConfigs[rank];
+  const normalized = (rank || "BRONZE").toString().toUpperCase();
+  const safeRank: keyof typeof rankConfigs = normalized.includes("SILVER")
+    ? "SILVER"
+    : normalized.includes("GOLD")
+    ? "GOLD"
+    : normalized.includes("ELITE")
+    ? "ELITE"
+    : "BRONZE";
+
+  const config = rankConfigs[safeRank];
   const IconComponent = config.icon;
 
   return (
@@ -105,13 +114,17 @@ export const StatusBadge: React.FC<StatusBadgeProps> = ({ status, className }) =
     },
   };
 
-  const config = statusConfigs[status];
+  const safeStatus = (status && statusConfigs[status as keyof typeof statusConfigs])
+    ? (status as keyof typeof statusConfigs)
+    : "ACTIVE";
+
+  const config = statusConfigs[safeStatus];
   const IconComponent = config.icon;
 
   return (
     <span
       className={cn(
-        "inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-md text-badge border",
+        "inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-none text-badge border",
         config.style,
         className
       )}

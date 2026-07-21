@@ -21,7 +21,7 @@ const STAGES: StepConfig[] = [
   {
     stage: "AI_REVIEW_IN_PROGRESS",
     title: "AI Review in Progress",
-    description: "Gemini 1.5 Pro scanning code structure, DOM elements & responsive layout.",
+    description: "OpenRouter AI Judge scanning code structure, DOM elements & responsive layout.",
     icon: <Cpu className="w-4 h-4 text-[#FF5500]" />,
   },
   {
@@ -88,70 +88,93 @@ export const FinancialWorkflowTimeline: React.FC<FinancialWorkflowTimelineProps>
             ✓ SETTLED & PAID
           </div>
         )}
+        {currentStage === "SUBMISSION_FAILED" && (
+          <div className="px-3 py-1 rounded-full bg-red-100 border border-red-300 text-red-800 font-mono text-xs font-bold">
+            ✗ POOL FORFEITED
+          </div>
+        )}
       </div>
 
       {/* Timeline Steps Stack */}
-      <div className="relative space-y-4 before:absolute before:left-5 before:top-3 before:bottom-3 before:w-0.5 before:bg-zinc-200">
+      <div className="relative space-y-4 before:absolute before:left-8 before:top-4 before:bottom-4 before:w-[2px] before:bg-zinc-200">
         {STAGES.map((step, idx) => {
-          const isCompleted = currentStageIndex > idx || currentStage === "PAYMENT_SUCCESSFUL";
-          const isCurrent = currentStageIndex === idx;
-          const isPending = currentStageIndex < idx && !isCompleted;
+          const isCompleted = !isFailed
+            ? (currentStageIndex > idx || currentStage === "PAYMENT_SUCCESSFUL")
+            : (idx < 2);
+          const isFailedStep = isFailed && idx === 2;
+          const isCurrent = !isFailed ? (currentStageIndex === idx) : false;
+          const isPending = !isFailed
+            ? (currentStageIndex < idx && !isCompleted)
+            : (idx > 2);
 
           return (
             <div
               key={step.stage}
-              className={`relative flex items-start gap-4 p-4 rounded-xl border transition-all ${
+              className={`relative flex items-start gap-4 p-4 rounded-xl border transition-all duration-300 ${
                 isCurrent
-                  ? "bg-[#FFF2EC] border-[#FF5500]/40 shadow-soft-card ring-1 ring-[#FF5500]/20"
+                  ? "bg-gradient-to-r from-orange-50/50 to-white border-[#FF5500]/30 shadow-md ring-1 ring-[#FF5500]/10 translate-x-1"
+                  : isFailedStep
+                  ? "bg-red-50/40 border-red-200/80 shadow-md ring-1 ring-red-500/10"
                   : isCompleted
-                  ? "bg-white border-zinc-200"
-                  : "bg-zinc-50/50 border-zinc-200 opacity-60"
+                  ? "bg-white border-zinc-200/80 shadow-sm hover:shadow-md"
+                  : "bg-zinc-50/30 border-zinc-100/80 opacity-50"
               }`}
             >
               {/* Step Circle Marker */}
               <div
-                className={`w-8 h-8 rounded-full flex items-center justify-center shrink-0 z-10 font-mono font-bold text-xs shadow-sm ${
+                className={`w-8 h-8 rounded-full flex items-center justify-center shrink-0 z-10 font-mono font-bold text-xs shadow-sm transition-all duration-300 ${
                   isCompleted
-                    ? "bg-emerald-500 text-white"
+                    ? "bg-emerald-500 text-white scale-105"
+                    : isFailedStep
+                    ? "bg-red-500 text-white scale-105"
                     : isCurrent
-                    ? "bg-[#FF5500] text-white shadow-orange-glow"
+                    ? "bg-[#FF5500] text-white shadow-orange-glow animate-pulse"
                     : "bg-zinc-200 text-zinc-500"
                 }`}
               >
-                {isCompleted ? "✓" : idx + 1}
+                {isCompleted ? "✓" : isFailedStep ? "✗" : idx + 1}
               </div>
 
               {/* Step Info */}
               <div className="flex-1 space-y-1">
                 <div className="flex items-center justify-between">
                   <h4
-                    className={`text-xs font-bold font-sans ${
+                    className={`text-xs font-bold font-sans tracking-wide transition-colors ${
                       isCurrent
                         ? "text-[#FF5500]"
+                        : isFailedStep
+                        ? "text-red-600 font-extrabold"
                         : isCompleted
                         ? "text-zinc-900"
                         : "text-zinc-500"
                     }`}
                   >
-                    {step.title}
+                    {isFailedStep ? "AI Review Failed" : step.title}
                   </h4>
 
                   {isCurrent && (
-                    <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-[#FF5500]/10 text-[#FF5500] text-[10px] font-mono font-bold uppercase animate-pulse">
+                    <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-[#FF5500]/10 text-[#FF5500] text-[9px] font-mono font-bold uppercase tracking-wider animate-pulse">
                       Processing...
+                    </span>
+                  )}
+                  {isFailedStep && (
+                    <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-red-100 text-red-600 text-[9px] font-mono font-bold uppercase tracking-wider animate-pulse">
+                      Aborted
                     </span>
                   )}
                 </div>
 
-                <p className="text-caption text-zinc-600 text-[11px]">
-                  {step.description}
+                <p className={`text-caption text-[11px] leading-relaxed ${isFailedStep ? "text-red-600/90" : "text-zinc-600"}`}>
+                  {isFailedStep
+                    ? "AI Judge detected missing Definition of Done items. Escrow release calculations aborted."
+                    : step.description}
                 </p>
 
                 {/* Monnify Tx Hash badge if completed */}
                 {step.stage === "FUNDS_RELEASED" && (isCompleted || isCurrent) && (
                   <div className="pt-2 flex items-center gap-2 text-[10px] font-mono text-zinc-500">
                     <span>Monnify Ref:</span>
-                    <strong className="text-zinc-900 bg-zinc-100 px-1.5 py-0.5 rounded border border-zinc-200">
+                    <strong className="text-zinc-900 bg-zinc-100 px-1.5 py-0.5 rounded border border-zinc-200 font-semibold">
                       {txHash}
                     </strong>
                   </div>
@@ -169,7 +192,7 @@ export const FinancialWorkflowTimeline: React.FC<FinancialWorkflowTimelineProps>
               <span>Submission Verification Failed</span>
             </div>
             <p className="text-caption text-red-600">
-              Gemini AI Judge detected missing Definition of Done items. Review feedback below and re-submit before deadline.
+              OpenRouter AI Judge detected missing Definition of Done items. Review feedback below and re-submit before deadline.
             </p>
           </div>
         )}
