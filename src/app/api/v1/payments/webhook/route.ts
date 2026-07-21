@@ -16,14 +16,17 @@ export async function POST(request: Request) {
       return NextResponse.json({ success: false, message: "Server misconfiguration" }, { status: 500 });
     }
 
-    // 1. Verify Monnify HMAC Signature to secure the webhook
+    // 1. Verify Monnify HMAC Signature (Case-insensitive) to secure the webhook
     const computedSignature = crypto
       .createHmac("sha512", secretKey)
       .update(rawBody)
       .digest("hex");
 
-    if (computedSignature !== signature) {
-      console.warn("Invalid Monnify webhook signature rejected");
+    if (computedSignature.toLowerCase() !== signature?.toLowerCase()) {
+      console.warn("Invalid Monnify webhook signature rejected:", {
+        received: signature,
+        computed: computedSignature,
+      });
       return NextResponse.json({ success: false, message: "Invalid signature verification" }, { status: 401 });
     }
 
@@ -52,23 +55,50 @@ export async function POST(request: Request) {
             },
           });
 
-          // A. Upsert registration into sprint_participants table
-          const { error: upsertErr } = await supabaseAdmin
+          // A. Select-then-insert/update to be resilient against missing database UNIQUE constraints
+          const { data: existingParticipant, error: fetchParticipantErr } = await supabaseAdmin
             .from("sprint_participants")
-            .upsert(
-              {
+            .select("id")
+            .eq("sprint_id", sprintId)
+            .eq("user_id", userId)
+            .maybeSingle();
+
+          if (fetchParticipantErr) {
+            console.error("Error checking existing participant:", fetchParticipantErr);
+            throw fetchParticipantErr;
+          }
+
+          if (existingParticipant) {
+            // Update existing row (which was created with PENDING state on click)
+            const { error: updateErr } = await supabaseAdmin
+              .from("sprint_participants")
+              .update({
+                amount_paid: amountPaid,
+                payment_status: "PAID",
+                payment_reference: paymentReference,
+              })
+              .eq("id", existingParticipant.id);
+
+            if (updateErr) {
+              console.error("Supabase participant update failed inside payment webhook:", updateErr);
+              throw updateErr;
+            }
+          } else {
+            // Insert a new row if it wasn't registered yet
+            const { error: insertErr } = await supabaseAdmin
+              .from("sprint_participants")
+              .insert({
                 sprint_id: sprintId,
                 user_id: userId,
                 amount_paid: amountPaid,
                 payment_status: "PAID",
                 payment_reference: paymentReference,
-              },
-              { onConflict: "sprint_id,user_id" }
-            );
+              });
 
-          if (upsertErr) {
-            console.error("Supabase upsert failed inside payment webhook:", upsertErr);
-            throw upsertErr;
+            if (insertErr) {
+              console.error("Supabase participant insert failed inside payment webhook:", insertErr);
+              throw insertErr;
+            }
           }
 
           // B. Retrieve latest metrics and increment slots/pool totals inside sprints table
