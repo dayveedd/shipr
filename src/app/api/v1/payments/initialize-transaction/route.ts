@@ -79,7 +79,7 @@ export async function POST(request: Request) {
 
     const customerName = user.user_metadata?.full_name || user.email?.split("@")[0] || "Participant";
     const customerEmail = user.email || "participant@gmail.com";
-    const paymentReference = `pay_ref_${sprint.id}_${Date.now()}`;
+    const paymentReference = `pay_${sprint.id}_${user.id}_${Date.now()}`;
     const paymentDescription = `Commitment stake for: ${sprint.title.substring(0, 30)}`;
 
     let transactionDetails;

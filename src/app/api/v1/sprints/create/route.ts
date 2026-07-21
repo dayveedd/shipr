@@ -49,46 +49,22 @@ export async function POST(request: Request) {
       return NextResponse.json({ success: false, message: "Missing challenge parameters" }, { status: 400 });
     }
 
-    const accountReference = `spr_ref_${Date.now()}`;
-    const accountName = `ShipR Pool: ${title.substring(0, 45)}`;
+    // 1. Assign central shared escrow account pool to the challenge
+    const globalBankCode = process.env.MONNIFY_GLOBAL_BANK_CODE || "035";
+    const globalBankName = process.env.MONNIFY_GLOBAL_BANK_NAME || "Wema Bank";
+    const globalAccountNumber = process.env.MONNIFY_GLOBAL_ACCOUNT_NUMBER || "0010993026";
 
-    // 1. Setup Monnify escrow payment reserved account
-    let poolAccounts = [];
-    try {
-      poolAccounts = await createReservedAccount(accountReference, accountName);
-    } catch (err: any) {
-      console.warn("Monnify reserved account creation failed, using sandbox fallback:", err);
-      // Fallback: Generate sandbox test mock accounts to guarantee demo works
-      poolAccounts = [
-        {
-          bankName: "Wema Bank (Test Escrow)",
-          accountNumber: "7763549201",
-          bankCode: "035",
-        },
-        {
-          bankName: "Providus Bank (Test Escrow)",
-          accountNumber: "9982736450",
-          bankCode: "101",
-        }
-      ];
-    }
-
-    // 1b. Setup Monnify split payment sub-account
-    let subAccountCode = "";
-    if (poolAccounts.length > 0) {
-      try {
-        const primaryAcc = poolAccounts[0];
-        subAccountCode = await createMonnifySubAccount(
-          primaryAcc.bankCode,
-          primaryAcc.accountNumber,
-          title
-        );
-      } catch (err: any) {
-        console.warn("Monnify sub-account registration failed, skipping split configuration:", err);
-        // Fallback placeholder sub-account code for sandbox testing
-        subAccountCode = `MF_SUB_${Date.now()}`;
+    const poolAccounts = [
+      {
+        bankName: globalBankName,
+        accountNumber: globalAccountNumber,
+        bankCode: globalBankCode,
       }
-    }
+    ];
+
+    // Sub-account code is left empty because all checkout payments will settle directly
+    // into the merchant parent account wallet where the central escrow resides.
+    const subAccountCode = "";
 
     // 2. Insert challenge record into Supabase Database
     const newSprintId = `spr_${Date.now()}`;
