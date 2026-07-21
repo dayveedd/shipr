@@ -2,6 +2,7 @@
 
 import React, { use, useEffect, useState } from "react";
 import Link from "next/link";
+import { useRouter } from "next/navigation";
 import { Button } from "@/components/ui/Button";
 import { Card } from "@/components/ui/Card";
 import { StatusBadge, RankBadge } from "@/components/ui/Badge";
@@ -43,6 +44,7 @@ export default function PublicProofPage({
   params: Promise<{ submissionId: string }>;
 }) {
   const { submissionId } = use(params);
+  const router = useRouter();
 
   const [user, setUser] = useState<User>(MOCK_CURRENT_USER);
   const [sprint, setSprint] = useState<Sprint>(MOCK_SPRINTS[0]);
@@ -640,10 +642,8 @@ export default function PublicProofPage({
         currentNotes={notes}
         currentVersion={attempts.length || 1}
         onSuccess={() => {
-          // Re-fetch evaluation after resubmission
-          submissionService.triggerAiEvaluation(submissionId).then(res => {
-            if (res.success && res.data) setEvaluation(res.data);
-          });
+          const sprintSlug = sprint?.slug || "react-landing-sprint";
+          router.push(`/sprints/${sprintSlug}/evaluating?submissionId=${submissionId}`);
         }}
       />
     </div>

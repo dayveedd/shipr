@@ -16,6 +16,7 @@ import {
   SprintStatus,
 } from "@/types";
 import { supabase } from "@/lib/supabase";
+import { EvaluationOrchestrator } from "./orchestration/evaluation-orchestrator.service";
 
 // Helper mappings between snake_case database schema and camelCase TypeScript interfaces
 
@@ -368,7 +369,8 @@ export class LiveSubmissionService implements ISubmissionService {
         };
       }
 
-      // 3. Re-trigger evaluation pipeline asynchronously
+      // 3. Clear cache and re-trigger evaluation pipeline
+      EvaluationOrchestrator.clearCache(submissionId);
       this.triggerAiEvaluation(submissionId).catch(err => console.error("Async re-evaluation failed:", err));
 
       return {

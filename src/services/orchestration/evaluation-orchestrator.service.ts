@@ -36,6 +36,14 @@ export interface OrchestrationInput {
 export class EvaluationOrchestrator {
   private static runtimeCache = new Map<string, { evaluation: any; timestamp: number }>();
 
+  static clearCache(submissionId?: string) {
+    if (submissionId) {
+      EvaluationOrchestrator.runtimeCache.delete(submissionId);
+    } else {
+      EvaluationOrchestrator.runtimeCache.clear();
+    }
+  }
+
   /**
    * Orchestrates the complete end-to-end evaluation pipeline connecting:
    * Evidence Collection -> Anti-Cheat Integrity Gate -> Verification Router ->
