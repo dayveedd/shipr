@@ -76,10 +76,11 @@ export async function POST(request: Request) {
       .replace(/[^a-z0-9]+/g, "-")
       .replace(/(^-|-$)/g, "");
 
+    const hours = Number(durationHours) || 48;
     const start = startTime ? new Date(startTime) : new Date();
     const isUpcoming = startTime && new Date(startTime).getTime() > Date.now();
     const status = isUpcoming ? "UPCOMING" : "ACTIVE";
-    const end = new Date(start.getTime() + durationHours * 3600 * 1000);
+    const end = new Date(start.getTime() + hours * 3600 * 1000);
 
     const newSprint = {
       id: newSprintId,

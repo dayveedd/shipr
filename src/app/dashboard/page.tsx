@@ -27,40 +27,123 @@ export default function DashboardPage() {
       if (res.success && res.data) {
         setUser(res.data);
 
-        // 1. Fetch user submissions from Supabase joining sprints details
-        try {
-          const { data: subData, error } = await supabase
-            .from("submissions")
-            .select("*, sprints(title, commitment_ngn)")
-            .eq("user_id", res.data.id);
+          // 1. Fetch live user submissions directly from Supabase joining sprints details
+          try {
+            const { data: dbSubData, error } = await supabase
+              .from("submissions")
+              .select("*, sprints(title, commitment_ngn)")
+              .order("submitted_at", { ascending: false });
 
-          if (error) throw error;
+            let localList: any[] = [];
+            try {
+              if (typeof window !== "undefined") {
+                const raw = localStorage.getItem("shipr_submissions");
+                if (raw) localList = JSON.parse(raw);
+              }
+            } catch (e) {}
 
-          if (subData) {
-            const mapped = subData.map((sub: any) => ({
-              id: sub.id,
-              sprintTitle: sub.sprints?.title || "Sprinting Challenge",
-              stakeNgn: Number(sub.sprints?.commitment_ngn || 5000),
-              submittedAt: new Date(sub.submitted_at).toLocaleDateString(),
-              stage: sub.stage,
-              version: sub.version || 1,
-              payoutNgn: sub.stage === "PAYMENT_SUCCESSFUL" ? Number(sub.sprints?.commitment_ngn || 5000) * 1.25 : 0,
-            }));
-            setSubmissions(mapped);
+            const merged = [...(dbSubData || [])];
+            localList.forEach((loc) => {
+              const existingIdx = merged.findIndex((m) => m.id === loc.id);
+              if (existingIdx >= 0) {
+                merged[existingIdx] = { ...merged[existingIdx], ...loc };
+              } else {
+                merged.push(loc);
+              }
+            });
 
-            // Compute live user stats from actual DB records
-            const totalEarned = mapped.reduce((acc: number, curr: any) => acc + (curr.payoutNgn || 0), 0);
-            const totalSubs = mapped.length;
-            const passSubs = mapped.filter((s: any) => s.stage === "PAYMENT_SUCCESSFUL").length;
-            const successRate = totalSubs > 0 ? Math.round((passSubs / totalSubs) * 100) : 0;
+            const subData = merged;
 
-            setUser((prev) => prev ? {
-              ...prev,
-              sprintsCompleted: totalSubs,
-              successRate: successRate,
-              totalEarnedNgn: totalEarned,
-            } : null);
-          }
+            if (subData) {
+              const rows: any[] = [];
+              const seenVersions = new Set<string>();
+
+              subData.forEach((sub: any) => {
+                let attemptsHistory: any[] = [];
+                try {
+                  if (sub.notes) {
+                    const parsed = JSON.parse(sub.notes);
+                    if (Array.isArray(parsed?.attemptsHistory)) {
+                      attemptsHistory = parsed.attemptsHistory;
+                    } else if (Array.isArray(parsed) && parsed[0]?.version) {
+                      attemptsHistory = parsed;
+                    }
+                  }
+                } catch (e) {
+                  attemptsHistory = [];
+                }
+
+                const sprintTitleKey = sub.sprints?.title || sub.sprintTitle || sub.sprint_id || "Sprinting Challenge";
+
+                // Add past attempts from history (e.g. Attempt v1)
+                attemptsHistory.forEach((past: any) => {
+                  const pastVer = past.version || 1;
+                  const verKey = `${sprintTitleKey}_v${pastVer}`;
+                  if (!seenVersions.has(verKey)) {
+                    seenVersions.add(verKey);
+
+                    const isPass = past.evaluationResult?.result === "PASS" || past.stage === "PAYMENT_SUCCESSFUL";
+                    const isFail = past.evaluationResult?.result === "FAIL" || past.stage === "SUBMISSION_FAILED";
+                    const stageText = isPass ? "PAYMENT_SUCCESSFUL" : isFail ? "SUBMISSION_FAILED" : past.stage || "SUBMISSION_FAILED";
+
+                    rows.push({
+                      id: sub.id,
+                      sprintTitle: sprintTitleKey,
+                      stakeNgn: Number(sub.sprints?.commitment_ngn || 5000),
+                      submittedAt: past.submittedAt ? new Date(past.submittedAt).toLocaleDateString() : new Date(sub.submitted_at).toLocaleDateString(),
+                      stage: stageText,
+                      version: pastVer,
+                      payoutNgn: isPass ? Number(sub.sprints?.commitment_ngn || 5000) * 1.25 : 0,
+                      isPass,
+                      isFail,
+                    });
+                  }
+                });
+
+                // Add current active attempt (e.g. Attempt v2)
+                const currentVer = sub.version || (attemptsHistory.length + 1) || 1;
+                const currentVerKey = `${sprintTitleKey}_v${currentVer}`;
+
+                if (!seenVersions.has(currentVerKey)) {
+                  seenVersions.add(currentVerKey);
+
+                  const currentPass = sub.evaluation_result?.result === "PASS" || sub.stage === "PAYMENT_SUCCESSFUL";
+                  const currentFail = sub.evaluation_result?.result === "FAIL" || sub.stage === "SUBMISSION_FAILED";
+                  const stageText = currentPass ? "PAYMENT_SUCCESSFUL" : currentFail ? "SUBMISSION_FAILED" : sub.stage || "SUBMISSION_RECEIVED";
+
+                  rows.push({
+                    id: sub.id,
+                    sprintTitle: sprintTitleKey,
+                    stakeNgn: Number(sub.sprints?.commitment_ngn || 5000),
+                    submittedAt: new Date(sub.submitted_at || Date.now()).toLocaleDateString(),
+                    stage: stageText,
+                    version: currentVer,
+                    payoutNgn: currentPass ? Number(sub.sprints?.commitment_ngn || 5000) * 1.25 : 0,
+                    isPass: currentPass,
+                    isFail: currentFail,
+                  });
+                }
+              });
+
+              // Sort newest attempt version first
+              rows.sort((a, b) => b.version - a.version);
+              setSubmissions(rows);
+
+              // Compute live user stats directly from real database records
+              const totalEarned = rows.reduce((acc: number, curr: any) => acc + (curr.payoutNgn || 0), 0);
+              const totalSubs = rows.length;
+              const passSubs = rows.filter((s: any) => s.isPass).length;
+              const successRate = totalSubs > 0 ? Math.round((passSubs / totalSubs) * 100) : 0;
+
+              setUser((prev) => prev ? {
+                ...prev,
+                sprintsCompleted: totalSubs,
+                successRate: successRate,
+                totalEarnedNgn: totalEarned,
+              } : null);
+            } else {
+              setSubmissions([]);
+            }
         } catch (subErr) {
           console.error("Error loading submissions:", subErr);
           setSubmissions([]);
@@ -91,40 +174,43 @@ export default function DashboardPage() {
     });
   }, [router]);
 
-  const getStageBadge = (stage: FinancialWorkflowStage) => {
+  const getStageBadge = (stage: string) => {
     switch (stage) {
       case "PAYMENT_SUCCESSFUL":
+      case "PASSED":
         return (
-          <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-emerald-100 text-emerald-800 border border-emerald-300 text-xs font-bold font-mono">
+          <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-emerald-100 text-emerald-800 border border-emerald-300 text-xs font-extrabold font-mono shadow-sm">
             <CheckCircle2 className="w-3.5 h-3.5 text-emerald-600" />
-            <span>PAID</span>
+            <span>PASSED (PAID)</span>
           </span>
         );
       case "PAYMENT_PROCESSING":
+      case "SETTLEMENT_PROCESSING":
         return (
-          <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-amber-100 text-amber-800 border border-amber-300 text-xs font-bold font-mono">
+          <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-amber-100 text-amber-800 border border-amber-300 text-xs font-bold font-mono">
             <Clock className="w-3.5 h-3.5 text-amber-600 animate-pulse" />
-            <span>PROCESSING</span>
+            <span>SETTLING PAYOUT</span>
           </span>
         );
       case "AI_REVIEW_IN_PROGRESS":
         return (
-          <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-blue-100 text-blue-800 border border-blue-300 text-xs font-bold font-mono">
+          <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-blue-100 text-blue-800 border border-blue-300 text-xs font-bold font-mono">
             <Loader2 className="w-3.5 h-3.5 text-blue-600 animate-spin" />
             <span>AI GRADING</span>
           </span>
         );
       case "SUBMISSION_FAILED":
+      case "FAILED":
         return (
-          <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-red-100 text-red-800 border border-red-300 text-xs font-bold font-mono">
+          <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-red-100 text-red-800 border border-red-300 text-xs font-extrabold font-mono shadow-sm">
             <XCircle className="w-3.5 h-3.5 text-red-600" />
             <span>FAILED</span>
           </span>
         );
       default:
         return (
-          <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-zinc-100 text-zinc-800 border border-zinc-200 text-xs font-mono">
-            <span>{stage}</span>
+          <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-zinc-100 text-zinc-800 border border-zinc-200 text-xs font-mono font-bold">
+            <span>{stage.replace(/_/g, " ")}</span>
           </span>
         );
     }
@@ -247,7 +333,7 @@ export default function DashboardPage() {
                   <th className="px-6 py-3.5">Attempt</th>
                   <th className="px-6 py-3.5">Stake Locked</th>
                   <th className="px-6 py-3.5">Submitted</th>
-                  <th className="px-6 py-3.5">Financial Lifecycle Stage</th>
+                  <th className="px-6 py-3.5">Financial & Evaluation Stage</th>
                   <th className="px-6 py-3.5 text-right">Action</th>
                 </tr>
               </thead>
@@ -266,32 +352,61 @@ export default function DashboardPage() {
                     </td>
                   </tr>
                 ) : (
-                  submissions.map((sub) => (
-                    <tr key={sub.id} className="hover:bg-[#FFF2EC]/30 transition-colors">
-                      <td className="px-6 py-4 font-bold text-zinc-900">
-                        {sub.sprintTitle}
-                      </td>
-                      <td className="px-6 py-4 font-mono text-xs font-bold text-[#FF5500]">
-                        Attempt v{sub.version || 1}
-                      </td>
-                      <td className="px-6 py-4 font-mono font-bold text-[#FF5500]">
-                        {formatNGN(sub.stakeNgn)}
-                      </td>
-                      <td className="px-6 py-4 text-xs text-zinc-500 font-mono">
-                        {sub.submittedAt}
-                      </td>
-                      <td className="px-6 py-4">
-                        {getStageBadge(sub.stage)}
-                      </td>
-                      <td className="px-6 py-4 text-right">
-                        <Link href={`/proof/${sub.id}`}>
-                          <Button size="sm" variant="secondary" className="rounded-none">
-                            View Lifecycle
-                          </Button>
-                        </Link>
-                      </td>
-                    </tr>
-                  ))
+                  submissions.map((sub) => {
+                    const isPassed = sub.isPass || sub.stage === "PAYMENT_SUCCESSFUL";
+                    const isFailed = sub.isFail || sub.stage === "SUBMISSION_FAILED";
+
+                    let statusBadge;
+                    let actionButtonText = "View Evaluation Status";
+                    let actionButtonClass = "bg-[#FF5500] hover:bg-[#E04B00] text-white";
+
+                    if (isPassed) {
+                      statusBadge = (
+                        <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-emerald-100 text-emerald-800 border border-emerald-300 text-xs font-extrabold font-mono shadow-sm">
+                          <CheckCircle2 className="w-3.5 h-3.5 text-emerald-600" />
+                          <span>CHALLENGE PASSED</span>
+                        </span>
+                      );
+                      actionButtonText = "View Disbursement Status";
+                      actionButtonClass = "bg-emerald-700 hover:bg-emerald-800 text-white";
+                    } else {
+                      statusBadge = (
+                        <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-red-100 text-red-800 border border-red-300 text-xs font-extrabold font-mono shadow-sm">
+                          <XCircle className="w-3.5 h-3.5 text-red-600" />
+                          <span>SUBMISSION FAILED</span>
+                        </span>
+                      );
+                      actionButtonText = "Resubmit Project";
+                      actionButtonClass = "bg-[#FF5500] hover:bg-[#E04B00] text-white";
+                    }
+
+                    return (
+                      <tr key={`${sub.id}_v${sub.version || 1}`} className="hover:bg-[#FFF2EC]/30 transition-colors">
+                        <td className="px-6 py-4 font-bold text-zinc-900">
+                          {sub.sprintTitle}
+                        </td>
+                        <td className="px-6 py-4 font-mono text-xs font-bold text-[#FF5500]">
+                          Attempt v{sub.version || 1}
+                        </td>
+                        <td className="px-6 py-4 font-mono font-bold text-[#FF5500]">
+                          {formatNGN(sub.stakeNgn)}
+                        </td>
+                        <td className="px-6 py-4 text-xs text-zinc-500 font-mono">
+                          {sub.submittedAt}
+                        </td>
+                        <td className="px-6 py-4">
+                          {statusBadge}
+                        </td>
+                        <td className="px-6 py-4 text-right">
+                          <Link href={`/proof/${sub.id}${isPassed ? '#disbursement' : '?resubmit=true'}`}>
+                            <button className={`${actionButtonClass} text-xs font-bold px-4 py-2 rounded-full shadow-md hover:shadow-lg transition-all inline-flex items-center justify-center`}>
+                              {actionButtonText}
+                            </button>
+                          </Link>
+                        </td>
+                      </tr>
+                    );
+                  })
                 )}
               </tbody>
             </table>
@@ -322,11 +437,42 @@ export default function DashboardPage() {
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
             {joinedSprints.map((sprint) => {
               const projectedPayout = sprint.commitmentNgn + sprint.commitmentNgn * 0.25;
+              const sub = submissions.find((s) => s.sprintTitle === sprint.title || s.sprintId === sprint.id || s.id === sprint.id);
+
+              let badgeElement = <StatusBadge status={sprint.status} />;
+              let buttonText = "Submit Proof of Work";
+              let buttonLink = `/sprints/${sprint.slug}`;
+              let buttonVariant: "primary" | "secondary" = "primary";
+
+              if (sub) {
+                if (sub.isPass || sub.stage === "PAYMENT_SUCCESSFUL") {
+                  badgeElement = (
+                    <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-emerald-100 text-emerald-800 border border-emerald-300 text-xs font-extrabold font-mono shadow-sm">
+                      <CheckCircle2 className="w-3.5 h-3.5 text-emerald-600" />
+                      <span>CHALLENGE PASSED</span>
+                    </span>
+                  );
+                  buttonText = "View Disbursement Status";
+                  buttonLink = `/proof/${sub.id}#disbursement`;
+                  buttonVariant = "secondary";
+                } else {
+                  badgeElement = (
+                    <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-red-100 text-red-800 border border-red-300 text-xs font-extrabold font-mono shadow-sm">
+                      <XCircle className="w-3.5 h-3.5 text-red-600" />
+                      <span>SUBMISSION FAILED</span>
+                    </span>
+                  );
+                  buttonText = "Resubmit Project";
+                  buttonLink = `/proof/${sub.id}?resubmit=true`;
+                  buttonVariant = "primary";
+                }
+              }
+
               return (
                 <Card key={sprint.id} className="p-6 border-zinc-200 hover:border-zinc-300 transition-colors shadow-soft-card flex flex-col justify-between space-y-6">
                   <div className="space-y-3">
                     <div className="flex items-center justify-between gap-2">
-                      <StatusBadge status={sprint.status} />
+                      {badgeElement}
                       <CountdownTimer targetDate={sprint.endTime} size="sm" />
                     </div>
                     <h3 className="text-h3 text-zinc-900 font-bold leading-snug">
@@ -353,9 +499,9 @@ export default function DashboardPage() {
                       </div>
                     </div>
 
-                    <Link href={`/sprints/${sprint.slug}`} className="block">
-                      <Button variant="primary" size="md" className="w-full font-bold">
-                        Submit Proof of Work
+                    <Link href={buttonLink} className="block">
+                      <Button variant={buttonVariant} size="md" className="w-full font-bold">
+                        {buttonText}
                       </Button>
                     </Link>
                   </div>

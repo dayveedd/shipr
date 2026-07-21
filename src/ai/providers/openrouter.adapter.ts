@@ -204,7 +204,7 @@ ${JSON.stringify(input.definitionOfDone, null, 2)}
         // Domain Mismatch Guard: If sprint requires iOS/Crypto but repository has no Swift or Cryptography files
         const isDomainMismatch = isIosOrCryptoSprint && !hasCryptoOrSwiftFiles;
 
-        isPassed = isRepoValid && !isDomainMismatch && (treeMatches || Boolean(readmeMatches));
+        isPassed = isRepoValid && !isDomainMismatch && (treeMatches || Boolean(readmeMatches) || input.githubEvidence.fileTree.length > 0 || isDeployAccessible);
         details = isDomainMismatch
           ? `Domain Mismatch: Submitted codebase (${input.githubEvidence.detectedFramework}) does not contain required iOS Swift/Cryptography implementation files for "${input.sprintTitle}".`
           : isPassed

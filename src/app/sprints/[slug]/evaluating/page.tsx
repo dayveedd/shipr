@@ -24,6 +24,9 @@ export default function AiEvaluatingPage({
   const searchParams = useSearchParams();
   const submissionId = searchParams.get("submissionId") || "sub_100";
 
+  const githubRepoUrl = searchParams.get("githubRepoUrl") || undefined;
+  const deploymentUrl = searchParams.get("deploymentUrl") || undefined;
+
   const [evaluation, setEvaluation] = useState<any | null>(null);
   const [settlement, setSettlement] = useState<SettlementSummary | null>(null);
   const [stage, setStage] = useState<FinancialWorkflowStage>("SUBMISSION_RECEIVED");
@@ -40,7 +43,10 @@ export default function AiEvaluatingPage({
 
     setStage("AI_REVIEW_IN_PROGRESS");
 
-    submissionService.triggerAiEvaluation(submissionId).then((res) => {
+    submissionService.triggerAiEvaluation(submissionId, {
+      githubRepoUrl,
+      deploymentUrl,
+    }).then((res) => {
       if (res.success && res.data) {
         setEvaluation(res.data);
         setIsLoading(false);

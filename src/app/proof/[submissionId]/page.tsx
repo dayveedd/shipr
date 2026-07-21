@@ -2,7 +2,7 @@
 
 import React, { use, useEffect, useState } from "react";
 import Link from "next/link";
-import { useRouter } from "next/navigation";
+import { useRouter, useSearchParams } from "next/navigation";
 import { Button } from "@/components/ui/Button";
 import { Card } from "@/components/ui/Card";
 import { StatusBadge, RankBadge } from "@/components/ui/Badge";
@@ -10,7 +10,7 @@ import { CountdownTimer } from "@/components/ui/CountdownTimer";
 import { ResubmitModal } from "@/components/submission/ResubmitModal";
 import { formatNGN } from "@/lib/utils";
 import { MOCK_CURRENT_USER, MOCK_SPRINTS, MOCK_AI_EVALUATION_PASS, MOCK_SETTLEMENT_SUMMARY } from "@/services/mockData";
-import { submissionService, userService } from "@/services";
+import { submissionService, userService, sprintService } from "@/services";
 import { User, Sprint, AiEvaluation, SettlementSummary, SubmissionAttempt, EvidenceTimelineEvent, DodCheckResult } from "@/types";
 import {
   Zap,
@@ -61,7 +61,15 @@ export default function PublicProofPage({
   const [isResubmitModalOpen, setIsResubmitModalOpen] = useState(false);
   const [activeEvidenceTab, setActiveEvidenceTab] = useState<"github" | "deployment" | "screenshots" | "browser" | "integrity">("github");
 
+  const searchParams = useSearchParams();
+
   const isSprintActive = sprint.status === "ACTIVE";
+
+  useEffect(() => {
+    if (searchParams?.get("resubmit") === "true") {
+      setIsResubmitModalOpen(true);
+    }
+  }, [searchParams]);
 
   useEffect(() => {
     async function loadData() {
@@ -76,9 +84,16 @@ export default function PublicProofPage({
         const subRes = await submissionService.getSubmissionStatus(submissionId);
         if (subRes.success && subRes.data) {
           const sub = subRes.data;
-          setGithubUrl(sub.githubRepoUrl || githubUrl);
-          setDeploymentUrl(sub.deploymentUrl || deploymentUrl);
+          setGithubUrl(sub.githubRepoUrl || "");
+          setDeploymentUrl(sub.deploymentUrl || "");
           setNotes(sub.notes || "");
+
+          if (sub.sprintId) {
+            const sprintRes = await sprintService.getSprintBySlug(sub.sprintId);
+            if (sprintRes.success && sprintRes.data) {
+              setSprint(sprintRes.data);
+            }
+          }
         }
 
         const evalRes = await submissionService.triggerAiEvaluation(submissionId);
@@ -273,6 +288,48 @@ export default function PublicProofPage({
             )}
           </div>
         </Card>
+
+        {/* Escrow Disbursement Status Card when Challenge Passed */}
+        {activeEval.result === "PASS" && (
+          <div id="disbursement" className="p-6 rounded-none bg-emerald-950/90 border border-emerald-500/40 space-y-4 text-emerald-100 shadow-xl">
+            <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 border-b border-emerald-500/20 pb-4">
+              <div className="flex items-center gap-3">
+                <div className="w-10 h-10 rounded-full bg-emerald-500/20 border border-emerald-400/40 flex items-center justify-center shrink-0">
+                  <CheckCircle2 className="w-6 h-6 text-emerald-400" />
+                </div>
+                <div>
+                  <h3 className="text-lg font-bold text-white flex items-center gap-2">
+                    Escrow Disbursement Status
+                    <span className="px-2.5 py-0.5 rounded-full bg-emerald-500/20 text-emerald-300 border border-emerald-400/30 text-[10px] font-mono font-bold">MONNIFY AUTOMATED SYNC</span>
+                  </h3>
+                  <p className="text-xs text-emerald-300">Your proof met all criteria! Prize pool funds are locked in Monnify escrow and scheduled for automated wallet disbursement upon sprint completion.</p>
+                </div>
+              </div>
+              <div className="text-right font-mono">
+                <span className="text-[10px] text-emerald-400 uppercase tracking-wider block">Your Prize Payout</span>
+                <span className="text-2xl font-extrabold text-emerald-300">₦{((sprint.commitmentNgn || 5000) * 1.25).toLocaleString()}</span>
+              </div>
+            </div>
+
+            <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 pt-1 text-xs font-mono">
+              <div className="p-3 rounded bg-emerald-900/40 border border-emerald-500/20">
+                <span className="text-emerald-400 block text-[10px] uppercase">Original Stake Locked</span>
+                <span className="text-white font-bold text-sm">₦{(sprint.commitmentNgn || 5000).toLocaleString()}</span>
+              </div>
+              <div className="p-3 rounded bg-emerald-900/40 border border-emerald-500/20">
+                <span className="text-emerald-400 block text-[10px] uppercase">Yield & Bounty Bonus</span>
+                <span className="text-emerald-300 font-bold text-sm">+₦{((sprint.commitmentNgn || 5000) * 0.25).toLocaleString()} (25%)</span>
+              </div>
+              <div className="p-3 rounded bg-emerald-900/40 border border-emerald-500/20">
+                <span className="text-emerald-400 block text-[10px] uppercase">Disbursement Countdown</span>
+                <div className="text-amber-300 font-bold text-sm flex items-center gap-1">
+                  <Clock className="w-3.5 h-3.5 animate-pulse" />
+                  <CountdownTimer targetDate={sprint.endTime} size="sm" />
+                </div>
+              </div>
+            </div>
+          </div>
+        )}
 
         {/* Part 3 — Attempt History Selector Tabs */}
         {attempts.length > 0 && (
@@ -563,16 +620,92 @@ export default function PublicProofPage({
             )}
 
             {activeEvidenceTab === "screenshots" && (
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                <div className="p-4 bg-zinc-50 border border-zinc-200 space-y-2 text-center">
-                  <Monitor className="w-6 h-6 text-[#FF5500] mx-auto" />
-                  <span className="font-bold text-zinc-800 block">Desktop Viewport (1280px)</span>
-                  <span className="text-[10px] text-emerald-600 font-bold block">✓ Visual Layout Verified</span>
+              <div className="space-y-6">
+                <div className="grid grid-cols-1 lg:grid-cols-12 gap-6">
+                  {/* Desktop Viewport (1280px) Frame */}
+                  <div className="lg:col-span-7 p-4 bg-zinc-50 border border-zinc-200 space-y-3">
+                    <div className="flex items-center justify-between border-b border-zinc-200 pb-2">
+                      <div className="flex items-center gap-2">
+                        <Monitor className="w-4 h-4 text-[#FF5500]" />
+                        <span className="font-bold text-zinc-900 text-xs">Desktop Viewport (1280px)</span>
+                      </div>
+                      <span className="text-[10px] text-emerald-600 font-bold flex items-center gap-1 bg-emerald-50 px-2 py-0.5 border border-emerald-200">
+                        <CheckCircle className="w-3 h-3 text-emerald-600" />
+                        Visual Layout Verified
+                      </span>
+                    </div>
+
+                    {/* Browser Shell mockup */}
+                    <div className="border border-zinc-300 bg-white overflow-hidden shadow-sm">
+                      <div className="bg-zinc-100 px-3 py-1.5 border-b border-zinc-200 flex items-center gap-2">
+                        <div className="flex items-center gap-1">
+                          <span className="w-2.5 h-2.5 rounded-full bg-red-400 inline-block" />
+                          <span className="w-2.5 h-2.5 rounded-full bg-yellow-400 inline-block" />
+                          <span className="w-2.5 h-2.5 rounded-full bg-emerald-400 inline-block" />
+                        </div>
+                        <div className="bg-white px-2.5 py-0.5 text-[10px] text-zinc-500 font-mono flex-1 border border-zinc-200 truncate">
+                          {deploymentUrl || "https://react.dev"}
+                        </div>
+                        <a
+                          href={deploymentUrl || "https://react.dev"}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className="text-zinc-500 hover:text-[#FF5500] text-[10px] flex items-center gap-1 font-bold"
+                        >
+                          <ExternalLink className="w-3 h-3" />
+                        </a>
+                      </div>
+
+                      <div className="relative w-full h-64 bg-zinc-900 overflow-hidden">
+                        <iframe
+                          src={deploymentUrl || "https://react.dev"}
+                          title="Desktop Viewport Preview"
+                          className="w-[1280px] h-[800px] border-0 transform scale-[0.32] origin-top-left pointer-events-none"
+                          sandbox="allow-scripts allow-same-origin"
+                        />
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* Mobile Viewport (375px) Frame */}
+                  <div className="lg:col-span-5 p-4 bg-zinc-50 border border-zinc-200 space-y-3">
+                    <div className="flex items-center justify-between border-b border-zinc-200 pb-2">
+                      <div className="flex items-center gap-2">
+                        <Smartphone className="w-4 h-4 text-[#FF5500]" />
+                        <span className="font-bold text-zinc-900 text-xs">Mobile Viewport (375px)</span>
+                      </div>
+                      <span className="text-[10px] text-emerald-600 font-bold flex items-center gap-1 bg-emerald-50 px-2 py-0.5 border border-emerald-200">
+                        <CheckCircle className="w-3 h-3 text-emerald-600" />
+                        Responsive Verified
+                      </span>
+                    </div>
+
+                    {/* Mobile Phone Mockup Frame */}
+                    <div className="max-w-[280px] mx-auto border-4 border-zinc-800 bg-zinc-900 rounded-[24px] p-2 overflow-hidden shadow-md">
+                      <div className="w-16 h-2 bg-zinc-700 rounded-full mx-auto mb-2" />
+                      <div className="relative w-full h-56 bg-white overflow-hidden rounded-[16px]">
+                        <iframe
+                          src={deploymentUrl || "https://react.dev"}
+                          title="Mobile Viewport Preview"
+                          className="w-[375px] h-[667px] border-0 transform scale-[0.38] origin-top-left pointer-events-none"
+                          sandbox="allow-scripts allow-same-origin"
+                        />
+                      </div>
+                    </div>
+                  </div>
                 </div>
-                <div className="p-4 bg-zinc-50 border border-zinc-200 space-y-2 text-center">
-                  <Smartphone className="w-6 h-6 text-[#FF5500] mx-auto" />
-                  <span className="font-bold text-zinc-800 block">Mobile Viewport (375px)</span>
-                  <span className="text-[10px] text-emerald-600 font-bold block">✓ Responsive Layout Verified</span>
+
+                <div className="p-3 bg-orange-50 border border-orange-200 text-orange-800 flex items-center justify-between text-xs">
+                  <span>✨ Visual verification scanner captured both 1280px desktop and 375px mobile snapshots.</span>
+                  <a
+                    href={deploymentUrl || "#"}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="inline-flex items-center gap-1 font-bold text-[#FF5500] hover:underline"
+                  >
+                    <span>Open Live Deployment</span>
+                    <ExternalLink className="w-3.5 h-3.5" />
+                  </a>
                 </div>
               </div>
             )}
@@ -641,9 +774,12 @@ export default function PublicProofPage({
         currentDeploymentUrl={deploymentUrl}
         currentNotes={notes}
         currentVersion={attempts.length || 1}
-        onSuccess={() => {
+        onSuccess={(newGithubUrl, newDeploymentUrl) => {
           const sprintSlug = sprint?.slug || "react-landing-sprint";
-          router.push(`/sprints/${sprintSlug}/evaluating?submissionId=${submissionId}`);
+          const query = newGithubUrl && newDeploymentUrl
+            ? `?submissionId=${submissionId}&githubRepoUrl=${encodeURIComponent(newGithubUrl)}&deploymentUrl=${encodeURIComponent(newDeploymentUrl)}`
+            : `?submissionId=${submissionId}`;
+          router.push(`/sprints/${sprintSlug}/evaluating${query}`);
         }}
       />
     </div>

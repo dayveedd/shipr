@@ -108,11 +108,18 @@ function SprintDetailContent({ slug }: { slug: string }) {
         throw new Error(resData.message || "Failed to initialize payment gateway");
       }
 
-      // Record registration locally in parallel
+      // Record registration locally in parallel & refresh sprint stats
       await sprintService.joinSprint(sprint.id);
+      const updated = await sprintService.getSprintBySlug(slug);
+      if (updated.success && updated.data) {
+        setSprint(updated.data);
+      }
+      setHasJoined(true);
 
       // Launch Monnify checkout!
-      window.location.href = resData.data.checkoutUrl;
+      if (resData.data?.checkoutUrl) {
+        window.location.href = resData.data.checkoutUrl;
+      }
     } catch (err: any) {
       alert(err.message || "Monnify transaction initialization failed");
     } finally {
@@ -121,7 +128,11 @@ function SprintDetailContent({ slug }: { slug: string }) {
     }
   };
 
-  const projectedPayout = sprint.commitmentNgn + sprint.commitmentNgn * 0.25;
+  // ShipR Escrow Formula: Passing builders receive 100% initial stake back + pro-rata share of 50% forfeited penalty pool from failed builders
+  const estimatedFails = Math.max(1, Math.round((sprint.filledSlots || 1) * 0.25));
+  const estimatedPasses = Math.max(1, (sprint.filledSlots || 1) - estimatedFails);
+  const failureBonusPool = estimatedFails * (sprint.commitmentNgn * 0.5); // 50% penalty per failed participant
+  const projectedPayout = sprint.commitmentNgn + (failureBonusPool / estimatedPasses);
   const isClosed = sprint.status === "SETTLED" || sprint.status === "EVALUATING" || new Date(sprint.endTime) <= new Date();
 
   return (

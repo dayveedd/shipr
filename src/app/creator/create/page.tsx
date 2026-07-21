@@ -47,9 +47,8 @@ export default function CreateChallengePage() {
   const [showSuccessModal, setShowSuccessModal] = useState(false);
 
   const [dodItems, setDodItems] = useState<CreatorDodItem[]>([
-    { id: "dod_1", title: "Hero & High-Impact Display", description: "Clear value prop, visual element, and primary CTA button", category: "FRONTEND", verificationMethod: "SCREENSHOT", isRequired: true },
-    { id: "dod_2", title: "Interactive Core Feature Flow", description: "Primary user interaction flow executes smoothly without JS errors", category: "FRONTEND", verificationMethod: "BUTTON_CLICK", isRequired: true },
-    { id: "dod_3", title: "Mobile Viewport Responsive Layout", description: "No horizontal scroll or layout shifts at 375px mobile breakpoint", category: "CODE_QUALITY", verificationMethod: "SCREENSHOT", isRequired: true },
+    { id: "dod_1", title: "Source Code Repository", description: "Valid public GitHub repository containing source code implementation", category: "FRONTEND", verificationMethod: "GITHUB_REPOSITORY", isRequired: true },
+    { id: "dod_2", title: "Live Deployment Endpoint", description: "Live active production deployment returning HTTP 200 OK", category: "DEPLOYMENT", verificationMethod: "LIVE_DEPLOYMENT", isRequired: true },
   ]);
 
   useEffect(() => {

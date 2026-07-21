@@ -33,16 +33,14 @@ ShipR replaces passive habit trackers with an **Execution Economy**:
 2. **Verified Creator (`VERIFIED_CREATOR`):** Gated by an explicit Creator Verification Application process. Approved creators access the **Creator Studio (`/creator/create`)** to publish developer sprints, define DoD criteria, and set participant limits.
 3. **Platform Admin (`ADMIN`):** Isolated high-security Admin Portal ([`/admin`](file:///c:/ShipR/src/app/admin/page.tsx)) for approving creator verification applications, monitoring Monnify Vault escrow health (`₦4,250,000`), and overriding AI verdict disputes.
 
-### ⚡ 7-Stage Asynchronous Financial Lifecycle State Machine
-```
-SUBMISSION_RECEIVED ──> AI_REVIEW_IN_PROGRESS ──> AI_REVIEW_COMPLETE ──> SETTLEMENT_PROCESSING
-                                                                              │
-PAYMENT_SUCCESSFUL <── FUNDS_RELEASED <── PAYMENT_PROCESSING <────────────────┘
-```
+### ⚡ Strict 2-Verdict Financial & Evaluation Lifecycle
+- **Strict Binary Verdict Enforcement:** Financial & Evaluation Stage badges strictly display **`CHALLENGE PASSED`** (green badge with `View Disbursement Status` button) or **`SUBMISSION FAILED`** (red badge with `Resubmit Project` button).
+- **Multi-Attempt History & Deduplication:** Tracks developer resubmissions sequentially (`Attempt v1`, `Attempt v2`, `Attempt v3`...) with deduplicated versioning across Supabase and client state.
+- **Automated Monnify Escrow Payouts:** Winners gain instant access to their **Escrow Disbursement Status** on their proof certificate, showing original stake, 25% yield bonus, Monnify escrow sync, and live countdown timer.
 
 ### 🏆 Interactive Features
-- **White Theme AI Inspection Console (`/sprints/[slug]/evaluating`):** Live terminal simulator streaming Gemini 1.5 Pro inspection logs with line-by-line DoD pass/fail checkmarks.
-- **Public Proof Certificates (`/proof/[submissionId]`):** Native Web Share API integration with automatic fallback clipboard copying and custom X (Twitter) & LinkedIn share cards.
+- **White Theme AI Inspection Console (`/sprints/[slug]/evaluating`):** Live terminal simulator streaming AI inspection logs with line-by-line DoD pass/fail checkmarks.
+- **Public Proof Certificates (`/proof/[submissionId]`):** Native Web Share API integration with automatic fallback clipboard copying, custom X & LinkedIn share cards, and automated escrow disbursement status.
 - **Global Leaderboard (`/leaderboard`):** Top 3 podium with timeframe filtering, net earnings, streak counters, and tabular statistics.
 
 ---

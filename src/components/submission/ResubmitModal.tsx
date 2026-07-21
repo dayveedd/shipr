@@ -14,7 +14,7 @@ interface ResubmitModalProps {
   currentDeploymentUrl: string;
   currentNotes?: string;
   currentVersion?: number;
-  onSuccess?: () => void;
+  onSuccess?: (githubRepoUrl?: string, deploymentUrl?: string) => void;
 }
 
 export const ResubmitModal: React.FC<ResubmitModalProps> = ({
@@ -32,6 +32,14 @@ export const ResubmitModal: React.FC<ResubmitModalProps> = ({
   const [notes, setNotes] = useState(currentNotes);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [errorMessage, setErrorMessage] = useState("");
+
+  React.useEffect(() => {
+    if (isOpen) {
+      setGithubUrl(currentGithubUrl || "");
+      setDeploymentUrl(currentDeploymentUrl || "");
+      setNotes(currentNotes || "");
+    }
+  }, [currentGithubUrl, currentDeploymentUrl, currentNotes, isOpen]);
 
   if (!isOpen) return null;
 
@@ -52,7 +60,7 @@ export const ResubmitModal: React.FC<ResubmitModalProps> = ({
       });
 
       if (response.success) {
-        if (onSuccess) onSuccess();
+        if (onSuccess) onSuccess(githubUrl.trim(), deploymentUrl.trim());
         onClose();
       } else {
         setErrorMessage(response.message || "Failed to resubmit project");

@@ -1,14 +1,4 @@
 import { DeploymentEvidence } from "@/ai/interfaces/ai-provider.interface";
-import dns from "dns";
-
-const lookupAsync = (hostname: string): Promise<string> => {
-  return new Promise((resolve, reject) => {
-    dns.lookup(hostname, (err, address) => {
-      if (err) reject(err);
-      else resolve(address);
-    });
-  });
-};
 
 const deploymentCache = new Map<string, { data: DeploymentEvidence; timestamp: number }>();
 const CACHE_TTL_MS = 60 * 1000; // 1 minute TTL
@@ -22,9 +12,8 @@ export async function isPrivateIP(urlStr: string): Promise<boolean> {
       return true;
     }
     
-    const ip = await lookupAsync(hostname);
-    const parts = ip.split(".").map(Number);
-    if (parts.length === 4) {
+    const parts = hostname.split(".").map(Number);
+    if (parts.length === 4 && !parts.some(isNaN)) {
       if (parts[0] === 10) return true;
       if (parts[0] === 172 && parts[1] >= 16 && parts[1] <= 31) return true;
       if (parts[0] === 192 && parts[1] === 168) return true;

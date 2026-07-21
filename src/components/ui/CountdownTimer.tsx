@@ -15,14 +15,25 @@ export const CountdownTimer: React.FC<CountdownTimerProps> = ({
   size = "md",
   className,
 }) => {
+  const [mounted, setMounted] = useState(false);
   const [timeLeft, setTimeLeft] = useState(formatCountdown(targetDate));
 
   useEffect(() => {
+    setMounted(true);
     const timer = setInterval(() => {
       setTimeLeft(formatCountdown(targetDate));
     }, 1000);
     return () => clearInterval(timer);
   }, [targetDate]);
+
+  if (!mounted) {
+    return (
+      <div className={cn("inline-flex items-center text-[13px] font-medium text-zinc-600", className)}>
+        <Clock className="w-3.5 h-3.5 text-zinc-400 mr-1.5" />
+        <span className="font-mono font-semibold tracking-wide">--h : --m : --s</span>
+      </div>
+    );
+  }
 
   const sizes = {
     sm: "text-xs gap-1 py-1 px-2.5",

@@ -105,20 +105,19 @@ export class EvaluationOrchestrator {
           .maybeSingle();
 
         if (sub) {
-          // If already evaluated and final verdict stored, return it
-          if (sub.evaluation_result) {
+          // If already evaluated and no new URLs submitted, return cached verdict
+          if (sub.evaluation_result && !input.githubRepoUrl && !input.deploymentUrl) {
             console.log("Returning cached evaluation result from database for submission:", input.submissionId);
-            // Also store in runtime memory cache
             EvaluationOrchestrator.runtimeCache.set(input.submissionId, {
               evaluation: sub.evaluation_result,
               timestamp: Date.now()
             });
             return sub.evaluation_result;
           }
-          targetGithub = sub.github_repo_url || targetGithub;
-          targetDeployment = sub.deployment_url || targetDeployment;
+          targetGithub = input.githubRepoUrl || sub.github_repo_url || targetGithub;
+          targetDeployment = input.deploymentUrl || sub.deployment_url || targetDeployment;
           if (sub.sprint_id) {
-            targetSprintId = sub.sprint_id;
+            targetSprintId = input.sprintId || sub.sprint_id;
           }
         }
       } catch (err) {
@@ -475,17 +474,56 @@ export class EvaluationOrchestrator {
       });
     }
 
-    // Write updates back to database (Separating execution state inside notes, and final verdict in evaluation_result)
+    // Write updates back to database (Preserving attemptsHistory alongside progressLogs in notes)
     if (submissionId) {
       const finalStage = evalResult.result === "PASS" ? "PAYMENT_SUCCESSFUL" : "SUBMISSION_FAILED";
-      await dbClient
+      
+      // Fetch latest notes from DB to avoid overwriting attemptsHistory saved by resubmitProject
+      const { data: latestSub } = await dbClient
+        .from("submissions")
+        .select("notes")
+        .eq("id", submissionId)
+        .maybeSingle();
+
+      let existingNotesObj: any = {};
+      try {
+        const notesStr = latestSub?.notes || sub?.notes;
+        if (notesStr) {
+          existingNotesObj = JSON.parse(notesStr);
+        }
+      } catch (e) {}
+
+      const attemptsHistory = Array.isArray(existingNotesObj?.attemptsHistory)
+        ? existingNotesObj.attemptsHistory
+        : Array.isArray(existingNotesObj) && existingNotesObj[0]?.version
+        ? existingNotesObj
+        : [];
+
+      const updatedNotesPayload = JSON.stringify({
+        attemptsHistory,
+        progressLogs,
+      });
+
+      const { error: updateErr } = await dbClient
         .from("submissions")
         .update({ 
           stage: finalStage,
-          notes: JSON.stringify(progressLogs),
+          notes: updatedNotesPayload,
           evaluation_result: finalResult
         })
         .eq("id", submissionId);
+
+      if (updateErr) {
+        const cleanSubId = submissionId.replace(/^sub_/, "");
+        await dbClient
+          .from("submissions")
+          .update({ 
+            stage: finalStage,
+            notes: updatedNotesPayload,
+            evaluation_result: finalResult
+          })
+          .eq("id", cleanSubId);
+      }
     }
 
     await dbClient

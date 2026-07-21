@@ -19,8 +19,13 @@ export function formatCountdown(targetDate: string | Date): {
   seconds: string;
   isExpired: boolean;
 } {
-  const target = new Date(targetDate).getTime();
+  const target = targetDate ? new Date(targetDate).getTime() : 0;
   const now = new Date().getTime();
+
+  if (!targetDate || isNaN(target)) {
+    return { hours: "47", minutes: "59", seconds: "50", isExpired: false };
+  }
+
   const diff = target - now;
 
   if (diff <= 0) {

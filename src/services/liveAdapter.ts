@@ -16,7 +16,6 @@ import {
   SprintStatus,
 } from "@/types";
 import { supabase } from "@/lib/supabase";
-import { EvaluationOrchestrator } from "./orchestration/evaluation-orchestrator.service";
 
 // Helper mappings between snake_case database schema and camelCase TypeScript interfaces
 
@@ -93,7 +92,23 @@ export class LiveSprintService implements ISprintService {
       const { data, error } = await query;
       if (error) throw error;
       
-      const sprints = (data || []).map(mapSprintToDomain);
+      const sprints = await Promise.all(
+        (data || []).map(async (row) => {
+          const { count } = await supabase
+            .from("sprint_participants")
+            .select("*", { count: "exact", head: true })
+            .or(`sprint_id.eq.${row.id},sprint_id.eq.${row.slug}`);
+
+          const participantCount = count || Number(row.filled_slots || 0);
+          const commitment = Number(row.commitment_ngn || 5000);
+          const calculatedPool = participantCount * commitment;
+
+          const domain = mapSprintToDomain(row);
+          domain.filledSlots = participantCount;
+          domain.totalPoolNgn = Math.max(domain.totalPoolNgn, calculatedPool);
+          return domain;
+        })
+      );
       return { success: true, message: "Sprints fetched successfully", data: sprints };
     } catch (err: any) {
       if (err.code === "PGRST205" || err.message?.includes("schema cache") || err.message?.includes("not find the table")) {
@@ -110,11 +125,25 @@ export class LiveSprintService implements ISprintService {
       const { data, error } = await supabase
         .from("sprints")
         .select("*")
-        .eq("slug", slug)
+        .or(`slug.eq.${slug},id.eq.${slug}`)
         .maybeSingle();
       if (error) throw error;
-      
-      return { success: true, message: "Sprint fetched successfully", data: mapSprintToDomain(data) };
+      if (!data) return { success: false, message: "Sprint not found", data: null as any };
+
+      const { count } = await supabase
+        .from("sprint_participants")
+        .select("*", { count: "exact", head: true })
+        .or(`sprint_id.eq.${data.id},sprint_id.eq.${data.slug}`);
+
+      const participantCount = count || Number(data.filled_slots || 0);
+      const commitment = Number(data.commitment_ngn || 5000);
+      const calculatedPool = participantCount * commitment;
+
+      const domain = mapSprintToDomain(data);
+      domain.filledSlots = participantCount;
+      domain.totalPoolNgn = Math.max(domain.totalPoolNgn, calculatedPool);
+
+      return { success: true, message: "Sprint fetched successfully", data: domain };
     } catch (err: any) {
       if (err.code === "PGRST205" || err.message?.includes("schema cache") || err.message?.includes("not find the table") || err.message?.includes("Sprint not found")) {
         const found = MOCK_SPRINTS.find(s => s.slug === slug);
@@ -155,9 +184,9 @@ export class LiveSprintService implements ISprintService {
       // Update slots count & total pool size
       const { data: sprint } = await supabase
         .from("sprints")
-        .select("filled_slots, commitment_ngn, total_pool_ngn")
-        .eq("id", sprintId)
-        .single();
+        .select("id, filled_slots, commitment_ngn, total_pool_ngn")
+        .or(`id.eq.${sprintId},slug.eq.${sprintId}`)
+        .maybeSingle();
 
       if (sprint) {
         await supabase
@@ -166,7 +195,7 @@ export class LiveSprintService implements ISprintService {
             filled_slots: (sprint.filled_slots || 0) + 1,
             total_pool_ngn: (sprint.total_pool_ngn || 0) + Number(sprint.commitment_ngn || 5000),
           })
-          .eq("id", sprintId);
+          .eq("id", sprint.id);
       }
 
       return {
@@ -280,13 +309,27 @@ export class LiveSubmissionService implements ISubmissionService {
 
   async getSubmissionStatus(submissionId: string): Promise<ApiResponse<Submission>> {
     try {
-      const { data, error } = await supabase
-        .from("submissions")
-        .select("*")
-        .eq("id", submissionId)
-        .maybeSingle();
+      let data: any = null;
+      try {
+        const { data: dbData } = await supabase
+          .from("submissions")
+          .select("*")
+          .eq("id", submissionId)
+          .maybeSingle();
+        data = dbData;
+      } catch (e) {}
 
-      if (error) throw error;
+      if (!data && typeof window !== "undefined") {
+        try {
+          const raw = localStorage.getItem("shipr_submissions");
+          if (raw) {
+            const list = JSON.parse(raw);
+            const found = list.find((s: any) => s.id === submissionId);
+            if (found) data = found;
+          }
+        } catch (e) {}
+      }
+
       if (!data) {
         return { success: false, message: "Submission not found", data: null as any };
       }
@@ -296,7 +339,10 @@ export class LiveSubmissionService implements ISubmissionService {
     }
   }
 
-  async triggerAiEvaluation(submissionId: string): Promise<ApiResponse<AiEvaluation>> {
+  async triggerAiEvaluation(
+    submissionId: string,
+    overrides?: { githubRepoUrl?: string; deploymentUrl?: string; notes?: string }
+  ): Promise<ApiResponse<AiEvaluation>> {
     try {
       const { data: { session } } = await supabase.auth.getSession();
       const authHeaders: Record<string, string> = { "Content-Type": "application/json" };
@@ -308,9 +354,29 @@ export class LiveSubmissionService implements ISubmissionService {
       const res = await fetch("/api/v1/ai-judge/evaluate", {
         method: "POST",
         headers: authHeaders,
-        body: JSON.stringify({ submissionId }),
+        body: JSON.stringify({
+          submissionId,
+          githubRepoUrl: overrides?.githubRepoUrl,
+          deploymentUrl: overrides?.deploymentUrl,
+          notes: overrides?.notes,
+        }),
       });
-      return await res.json();
+      const evalJson = await res.json();
+      if (evalJson?.success && evalJson?.data) {
+        try {
+          if (typeof window !== "undefined") {
+            const raw = localStorage.getItem("shipr_submissions") || "[]";
+            const list = JSON.parse(raw);
+            const idx = list.findIndex((s: any) => s.id === submissionId);
+            if (idx >= 0) {
+              list[idx].evaluation_result = evalJson.data;
+              list[idx].stage = evalJson.data.result === "PASS" ? "PAYMENT_SUCCESSFUL" : "SUBMISSION_FAILED";
+              localStorage.setItem("shipr_submissions", JSON.stringify(list));
+            }
+          }
+        } catch (e) {}
+      }
+      return evalJson;
     } catch (err: any) {
       return {
         success: false,
@@ -331,11 +397,27 @@ export class LiveSubmissionService implements ISubmissionService {
 
       let attemptsArray: any[] = [];
       try {
-        if (currentSub?.notes && currentSub.notes.startsWith("[")) {
-          attemptsArray = JSON.parse(currentSub.notes);
+        if (currentSub?.notes) {
+          const parsed = JSON.parse(currentSub.notes);
+          if (Array.isArray(parsed?.attemptsHistory)) {
+            attemptsArray = parsed.attemptsHistory;
+          } else if (Array.isArray(parsed) && parsed[0]?.version) {
+            attemptsArray = parsed;
+          }
         }
       } catch (e) {
         attemptsArray = [];
+      }
+
+      if (currentSub) {
+        attemptsArray.push({
+          version: currentSub.version || 1,
+          githubRepoUrl: currentSub.github_repo_url,
+          deploymentUrl: currentSub.deployment_url,
+          submittedAt: currentSub.submitted_at,
+          evaluationResult: currentSub.evaluation_result,
+          stage: currentSub.stage,
+        });
       }
 
       const nextVersion = (currentSub?.version || attemptsArray.length || 1) + 1;
@@ -346,9 +428,9 @@ export class LiveSubmissionService implements ISubmissionService {
         .update({
           github_repo_url: data.githubRepoUrl,
           deployment_url: data.deploymentUrl,
-          notes: data.notes || currentSub?.notes,
+          notes: JSON.stringify({ attemptsHistory: attemptsArray, version: nextVersion }),
           stage: "AI_REVIEW_IN_PROGRESS",
-          version: nextVersion,
+          submitted_at: new Date().toISOString(),
         })
         .eq("id", submissionId)
         .select();
@@ -362,16 +444,34 @@ export class LiveSubmissionService implements ISubmissionService {
           user_id: currentSub?.user_id || "usr_demo",
           github_repo_url: data.githubRepoUrl,
           deployment_url: data.deploymentUrl,
-          notes: data.notes || "",
+          notes: JSON.stringify({ attemptsHistory: attemptsArray }),
           stage: "AI_REVIEW_IN_PROGRESS",
           version: nextVersion,
           submitted_at: new Date().toISOString(),
         };
       }
 
-      // 3. Clear cache and re-trigger evaluation pipeline
-      EvaluationOrchestrator.clearCache(submissionId);
-      this.triggerAiEvaluation(submissionId).catch(err => console.error("Async re-evaluation failed:", err));
+      // Persist to localStorage for guaranteed UI state sync
+      try {
+        if (typeof window !== "undefined") {
+          const raw = localStorage.getItem("shipr_submissions") || "[]";
+          const list = JSON.parse(raw);
+          const idx = list.findIndex((s: any) => s.id === submissionId);
+          if (idx >= 0) {
+            list[idx] = updatedSub;
+          } else {
+            list.push(updatedSub);
+          }
+          localStorage.setItem("shipr_submissions", JSON.stringify(list));
+        }
+      } catch (e) {}
+
+      // 3. Re-trigger evaluation pipeline asynchronously via server route with new URL overrides
+      this.triggerAiEvaluation(submissionId, {
+        githubRepoUrl: data.githubRepoUrl,
+        deploymentUrl: data.deploymentUrl,
+        notes: data.notes,
+      }).catch(err => console.error("Async re-evaluation failed:", err));
 
       return {
         success: true,
@@ -563,13 +663,15 @@ export class LiveUserService implements IUserService {
 export class LiveSettlementService implements ISettlementService {
   async getSettlementSummary(sprintId: string): Promise<ApiResponse<SettlementSummary>> {
     try {
-      const { data, error } = await supabase
-        .from("settlement_summaries")
-        .select("*")
-        .eq("sprint_id", sprintId)
-        .maybeSingle();
-
-      if (error) throw error;
+      let data: any = null;
+      try {
+        const { data: dbData } = await supabase
+          .from("settlement_summaries")
+          .select("*")
+          .eq("sprint_id", sprintId)
+          .maybeSingle();
+        data = dbData;
+      } catch (e) {}
 
       if (data) {
         const mapped: SettlementSummary = {
@@ -597,7 +699,7 @@ export class LiveSettlementService implements ISettlementService {
       const passes = Math.round(participants * 0.8);
       const fails = participants - passes;
       const initialStakeRefund = commitment;
-      const redistributionPool = fails * commitment;
+      const redistributionPool = fails * (commitment * 0.5); // 50% penalty per failed participant
       const bonus = passes > 0 ? redistributionPool / passes : 0;
 
       return {
