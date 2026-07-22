@@ -524,6 +524,15 @@ export class EvaluationOrchestrator {
           })
           .eq("id", cleanSubId);
       }
+
+      // Update participant's payout eligibility in sprint_participants table
+      await dbClient
+        .from("sprint_participants")
+        .update({
+          is_eligible: evalResult.result === "PASS"
+        })
+        .eq("sprint_id", targetSprintId)
+        .eq("user_id", userId);
     }
 
     await dbClient

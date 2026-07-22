@@ -186,3 +186,156 @@ export async function initializeMonnifyTransaction(
     checkoutUrl: body.responseBody.checkoutUrl,
   };
 }
+
+export interface MonnifyBank {
+  name: string;
+  code: string;
+}
+
+export async function getMonnifyBanks(): Promise<MonnifyBank[]> {
+  const token = await getMonnifyAccessToken();
+  const response = await fetch(`${baseUrl}/api/v1/banks`, {
+    method: "GET",
+    headers: {
+      "Authorization": `Bearer ${token}`,
+      "Content-Type": "application/json",
+    },
+  });
+
+  const body = await response.json();
+  if (!response.ok || !body.requestSuccessful) {
+    throw new Error(
+      `Monnify Banks Fetch Error (HTTP status ${response.status}): ${body.responseMessage || "Failed"}`
+    );
+  }
+
+  return (body.responseBody || []).map((b: any) => ({
+    name: b.name,
+    code: b.code,
+  }));
+}
+
+export interface ValidatedAccount {
+  accountName: string;
+  accountNumber: string;
+  bankCode: string;
+}
+
+export async function validateBankAccount(
+  accountNumber: string,
+  bankCode: string
+): Promise<ValidatedAccount> {
+  const token = await getMonnifyAccessToken();
+  const response = await fetch(
+    `${baseUrl}/api/v2/disbursements/account/validate?accountNumber=${accountNumber}&bankCode=${bankCode}`,
+    {
+      method: "GET",
+      headers: {
+        "Authorization": `Bearer ${token}`,
+        "Content-Type": "application/json",
+      },
+    }
+  );
+
+  const body = await response.json();
+  if (!response.ok || !body.requestSuccessful) {
+    throw new Error(
+      `Monnify Account Validation Error (HTTP status ${response.status}): ${body.responseMessage || "Failed"}`
+    );
+  }
+
+  return {
+    accountName: body.responseBody.accountName,
+    accountNumber: body.responseBody.accountNumber,
+    bankCode: body.responseBody.bankCode,
+  };
+}
+
+export interface DisbursementResponse {
+  amount: number;
+  reference: string;
+  status: string;
+}
+
+export async function initiateDisbursementTransfer(
+  amount: number,
+  reference: string,
+  bankCode: string,
+  accountNumber: string,
+  accountName: string
+): Promise<DisbursementResponse> {
+  const token = await getMonnifyAccessToken();
+  const payload = {
+    amount,
+    reference,
+    narration: "ShipR Payout Settlement",
+    destinationBankCode: bankCode,
+    destinationAccountNumber: accountNumber,
+    destinationAccountName: accountName,
+    currency: "NGN",
+    async: false,
+  };
+
+  const response = await fetch(`${baseUrl}/api/v2/disbursements/single`, {
+    method: "POST",
+    headers: {
+      "Authorization": `Bearer ${token}`,
+      "Content-Type": "application/json",
+    },
+    body: JSON.stringify(payload),
+  });
+
+  const body = await response.json();
+  if (!response.ok || !body.requestSuccessful) {
+    throw new Error(
+      `Monnify Disbursement Error (HTTP status ${response.status}): ${body.responseMessage || "Failed"}`
+    );
+  }
+
+  return {
+    amount: body.responseBody.amount,
+    reference: body.responseBody.reference,
+    status: body.responseBody.status,
+  };
+}
+
+export async function initiateBatchDisbursement(
+  batchReference: string,
+  title: string,
+  narration: string,
+  transactions: Array<{
+    amount: number;
+    reference: string;
+    narration: string;
+    destinationBankCode: string;
+    destinationAccountNumber: string;
+    destinationAccountName: string;
+    currency: string;
+  }>
+): Promise<any> {
+  const token = await getMonnifyAccessToken();
+  const payload = {
+    title,
+    batchReference,
+    narration,
+    transactions,
+  };
+
+  const response = await fetch(`${baseUrl}/api/v2/disbursements/batch`, {
+    method: "POST",
+    headers: {
+      "Authorization": `Bearer ${token}`,
+      "Content-Type": "application/json",
+    },
+    body: JSON.stringify(payload),
+  });
+
+  const body = await response.json();
+  if (!response.ok || !body.requestSuccessful) {
+    throw new Error(
+      `Monnify Batch Disbursement Error (HTTP status ${response.status}): ${body.responseMessage || "Failed"}`
+    );
+  }
+
+  return body.responseBody;
+}
