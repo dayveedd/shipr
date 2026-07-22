@@ -7,7 +7,8 @@ import { Button } from "@/components/ui/Button";
 import { Card } from "@/components/ui/Card";
 import { submissionService, userService, sprintService } from "@/services";
 import { Sprint } from "@/types";
-import { ArrowLeft, Github, Globe, FileText, Cpu, AlertCircle, Loader2 } from "lucide-react";
+import { ArrowLeft, Github, Globe, FileText, Cpu, AlertCircle, Loader2, Trophy } from "lucide-react";
+import { supabase } from "@/lib/supabase";
 
 export default function SubmissionPage({ params }: { params: Promise<{ slug: string }> }) {
   const { slug } = use(params);
@@ -16,6 +17,13 @@ export default function SubmissionPage({ params }: { params: Promise<{ slug: str
   const [user, setUser] = useState<any>(null);
   const [sprint, setSprint] = useState<Sprint | null>(null);
   const [isLoading, setIsLoading] = useState(true);
+  const [existingSubmission, setExistingSubmission] = useState<any>(null);
+
+  const [githubUrl, setGithubUrl] = useState("");
+  const [deploymentUrl, setDeploymentUrl] = useState("");
+  const [notes, setNotes] = useState("");
+  const [isSubmitting, setIsSubmitting] = useState(false);
+  const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
     // 1. Fetch current user and redirect if not authed
@@ -27,20 +35,30 @@ export default function SubmissionPage({ params }: { params: Promise<{ slug: str
       }
     });
 
-    // 2. Fetch sprint details
+    // 2. Fetch sprint details & existing submission
     sprintService.getSprintBySlug(slug).then((res) => {
       if (res.success && res.data) {
         setSprint(res.data);
+
+        // Helper to check submission fallback
+        if (typeof window !== "undefined") {
+          try {
+            const raw = localStorage.getItem("shipr_submissions");
+            if (raw) {
+              const list = JSON.parse(raw);
+              const found = list.find((s: any) => s.sprintId === res.data.id || s.sprint_id === res.data.id || s.sprintTitle === res.data.title);
+              if (found) {
+                setExistingSubmission(found);
+                if (found.githubRepoUrl) setGithubUrl(found.githubRepoUrl);
+                if (found.deploymentUrl) setDeploymentUrl(found.deploymentUrl);
+              }
+            }
+          } catch (e) {}
+        }
       }
       setIsLoading(false);
     });
   }, [router, slug]);
-
-  const [githubUrl, setGithubUrl] = useState("");
-  const [deploymentUrl, setDeploymentUrl] = useState("");
-  const [notes, setNotes] = useState("");
-  const [isSubmitting, setIsSubmitting] = useState(false);
-  const [error, setError] = useState<string | null>(null);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -139,6 +157,23 @@ export default function SubmissionPage({ params }: { params: Promise<{ slug: str
       </div>
 
       <Card className="p-6 sm:p-8 space-y-6 border-zinc-300 shadow-soft-card">
+        {existingSubmission && (existingSubmission.isPass || existingSubmission.stage === "PAYMENT_SUCCESSFUL" || existingSubmission.verdict === "PASS" || existingSubmission.evaluation_result?.result === "PASS") && (
+          <div className="p-4 rounded-xl bg-emerald-50 border border-emerald-300 text-emerald-950 space-y-2 shadow-sm">
+            <div className="flex items-center gap-2 font-bold text-emerald-800">
+              <Trophy className="w-5 h-5 text-emerald-600 shrink-0" />
+              <span>You Have Won This Challenge! 🏆</span>
+            </div>
+            <p className="text-xs text-emerald-800">
+              Your submission has already passed AI evaluation. If you submit new URLs below, the AI Judge will re-evaluate your project.
+            </p>
+            <div className="pt-1">
+              <Link href={`/proof/${existingSubmission.id}`} className="text-xs font-bold text-emerald-700 underline hover:text-emerald-900">
+                View Verified Victory & Proof →
+              </Link>
+            </div>
+          </div>
+        )}
+
         <div className="p-4 rounded-xl bg-orange-50 border border-orange-200 text-orange-800 flex items-start gap-3 text-sm">
           <AlertCircle className="w-5 h-5 text-orange-600 shrink-0 mt-0.5" />
           <div className="space-y-1">

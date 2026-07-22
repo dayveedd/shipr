@@ -24,6 +24,7 @@ function SprintDetailContent({ slug }: { slug: string }) {
   const [isJoining, setIsJoining] = useState(false);
   const [showCheckoutModal, setShowCheckoutModal] = useState(false);
   const [hasJoined, setHasJoined] = useState(false);
+  const [userSubmission, setUserSubmission] = useState<any>(null);
   const [isCopied, setIsCopied] = useState(false);
 
   const fetchSprintDetails = () => {
@@ -39,20 +40,59 @@ function SprintDetailContent({ slug }: { slug: string }) {
       if (res.success && res.data) {
         setSprint(res.data);
         
-        // 1. Check if user is registered in this sprint in the database on load
+        const checkLocalSub = (sId: string, sTitle: string, uId?: string) => {
+          if (typeof window === "undefined") return null;
+          try {
+            const raw = localStorage.getItem("shipr_submissions");
+            if (!raw) return null;
+            const list = JSON.parse(raw);
+            return list.find((s: any) =>
+              (s.sprintId === sId || s.sprint_id === sId || s.sprintTitle === sTitle) &&
+              (!uId || s.userId === uId || s.user_id === uId)
+            );
+          } catch (e) {
+            return null;
+          }
+        };
+
+        // 1. Check if user is registered in this sprint & fetch submission status
         supabase.auth.getUser().then(({ data: { user } }) => {
-          if (user) {
+          const userId = user?.id;
+          if (userId) {
             supabase
               .from("sprint_participants")
               .select("*")
               .eq("sprint_id", res.data.id)
-              .eq("user_id", user.id)
+              .eq("user_id", userId)
               .maybeSingle()
               .then(({ data: participant }) => {
                 if (participant) {
                   setHasJoined(true);
                 }
               });
+
+            supabase
+              .from("submissions")
+              .select("*")
+              .eq("sprint_id", res.data.id)
+              .eq("user_id", userId)
+              .order("submitted_at", { ascending: false })
+              .then(({ data: dbSubs }) => {
+                let sub = dbSubs && dbSubs.length > 0 ? dbSubs[0] : null;
+                if (!sub) {
+                  sub = checkLocalSub(res.data.id, res.data.title, userId);
+                }
+                if (sub) {
+                  setUserSubmission(sub);
+                  setHasJoined(true);
+                }
+              });
+          } else {
+            const sub = checkLocalSub(res.data.id, res.data.title);
+            if (sub) {
+              setUserSubmission(sub);
+              setHasJoined(true);
+            }
           }
         });
       }
@@ -236,15 +276,84 @@ function SprintDetailContent({ slug }: { slug: string }) {
               </div>
             ) : hasJoined ? (
               <div className="space-y-3">
-                <div className="p-3 rounded-lg bg-zinc-100 border border-zinc-300 text-center text-caption text-zinc-900 font-bold flex items-center justify-center gap-2">
-                  <CheckCircle className="w-4 h-4 text-emerald-600" />
-                  <span>You are registered in this Sprint!</span>
-                </div>
-                <Link href={`/sprints/${sprint.slug}/submit`} className="block">
-                  <Button size="lg" variant="primary" className="w-full font-bold">
-                    Submit Proof of Work
-                  </Button>
-                </Link>
+                {userSubmission ? (() => {
+                  let evalResult = userSubmission.evaluation_result || userSubmission.evaluationResult;
+                  if (typeof evalResult === "string") {
+                    try { evalResult = JSON.parse(evalResult); } catch (e) {}
+                  }
+
+                  const isFail =
+                    userSubmission.stage === "SUBMISSION_FAILED" ||
+                    userSubmission.stage === "FAIL" ||
+                    userSubmission.stage === "FAILED" ||
+                    evalResult?.result === "FAIL" ||
+                    userSubmission.verdict === "FAIL" ||
+                    userSubmission.result === "FAIL";
+
+                  const isEvaluating = userSubmission.stage === "AI_REVIEW_IN_PROGRESS";
+
+                  if (isFail) {
+                    return (
+                      <>
+                        <div className="p-3.5 rounded-xl bg-red-50 border border-red-300 text-center text-caption text-red-900 font-bold flex items-center justify-center gap-2 shadow-sm">
+                          <AlertTriangle className="w-4 h-4 text-red-600 shrink-0" />
+                          <span>Submission Needs Improvement</span>
+                        </div>
+                        <Link href={`/sprints/${sprint.slug}/submit`} className="block">
+                          <Button size="lg" variant="primary" className="w-full font-bold bg-red-600 hover:bg-red-700 border-red-700 text-white">
+                            Resubmit Proof of Work
+                          </Button>
+                        </Link>
+                        <Link href={`/proof/${userSubmission.id}`} className="block text-center text-xs text-zinc-500 hover:text-zinc-900 underline font-sans pt-1">
+                          View Last AI Feedback
+                        </Link>
+                      </>
+                    );
+                  } else if (isEvaluating) {
+                    return (
+                      <>
+                        <div className="p-3.5 rounded-xl bg-amber-50 border border-amber-300 text-center text-caption text-amber-900 font-bold flex items-center justify-center gap-2 shadow-sm">
+                          <Zap className="w-4 h-4 text-amber-600 shrink-0 animate-pulse" />
+                          <span>Proof Submitted — Under Evaluation</span>
+                        </div>
+                        <Link href={`/sprints/${sprint.slug}/evaluating?submissionId=${userSubmission.id}`} className="block">
+                          <Button size="lg" variant="primary" className="w-full font-bold">
+                            View Evaluation Status
+                          </Button>
+                        </Link>
+                      </>
+                    );
+                  } else {
+                    return (
+                      <>
+                        <div className="p-3.5 rounded-xl bg-emerald-50 border border-emerald-300 text-center text-caption text-emerald-900 font-bold flex items-center justify-center gap-2 shadow-sm">
+                          <Trophy className="w-4 h-4 text-emerald-600 shrink-0" />
+                          <span>Challenge Passed & Won! 🏆</span>
+                        </div>
+                        <Link href={`/proof/${userSubmission.id}`} className="block">
+                          <Button size="lg" variant="primary" className="w-full font-bold bg-emerald-600 hover:bg-emerald-700 border-emerald-700 text-white shadow-md">
+                            View Victory & Proof
+                          </Button>
+                        </Link>
+                        <Link href={`/sprints/${sprint.slug}/submit`} className="block text-center text-xs text-zinc-500 hover:text-zinc-900 underline font-sans pt-1">
+                          Update or Resubmit Code
+                        </Link>
+                      </>
+                    );
+                  }
+                })() : (
+                  <>
+                    <div className="p-3 rounded-lg bg-zinc-100 border border-zinc-300 text-center text-caption text-zinc-900 font-bold flex items-center justify-center gap-2">
+                      <CheckCircle className="w-4 h-4 text-emerald-600" />
+                      <span>You are registered in this Sprint!</span>
+                    </div>
+                    <Link href={`/sprints/${sprint.slug}/submit`} className="block">
+                      <Button size="lg" variant="primary" className="w-full font-bold">
+                        Submit Proof of Work
+                      </Button>
+                    </Link>
+                  </>
+                )}
               </div>
             ) : (
               <Button

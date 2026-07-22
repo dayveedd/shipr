@@ -445,17 +445,20 @@ export default function DashboardPage() {
               let buttonVariant: "primary" | "secondary" = "primary";
 
               if (sub) {
-                if (sub.isPass || sub.stage === "PAYMENT_SUCCESSFUL") {
+                const isPass = sub.isPass || sub.stage === "PAYMENT_SUCCESSFUL" || sub.verdict === "PASS" || sub.evaluation_result?.result === "PASS";
+                const isFail = sub.stage === "SUBMISSION_FAILED" || sub.verdict === "FAIL" || sub.evaluation_result?.result === "FAIL";
+
+                if (isPass) {
                   badgeElement = (
                     <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-emerald-100 text-emerald-800 border border-emerald-300 text-xs font-extrabold font-mono shadow-sm">
                       <CheckCircle2 className="w-3.5 h-3.5 text-emerald-600" />
-                      <span>CHALLENGE PASSED</span>
+                      <span>CHALLENGE PASSED 🏆</span>
                     </span>
                   );
-                  buttonText = "View Disbursement Status";
-                  buttonLink = `/proof/${sub.id}#disbursement`;
+                  buttonText = "View Victory & Proof";
+                  buttonLink = `/proof/${sub.id}`;
                   buttonVariant = "secondary";
-                } else {
+                } else if (isFail) {
                   badgeElement = (
                     <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-red-100 text-red-800 border border-red-300 text-xs font-extrabold font-mono shadow-sm">
                       <XCircle className="w-3.5 h-3.5 text-red-600" />
