@@ -191,7 +191,6 @@ ${JSON.stringify(input.definitionOfDone, null, 2)}
     return {
       result: "PASS",
       confidenceScore: 98,
-      overallScore: 100,
       reasoning,
       suggestions: [
         "Ensure all environment secrets are properly configured on deployment platform.",
