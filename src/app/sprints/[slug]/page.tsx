@@ -12,7 +12,7 @@ import { DodChecklist } from "@/components/ui/DodChecklist";
 import { formatNGN } from "@/lib/utils";
 import { sprintService } from "@/services";
 import { Sprint } from "@/types";
-import { ArrowLeft, ShieldCheck, Zap, Trophy, CheckCircle, AlertTriangle, Copy } from "lucide-react";
+import { ArrowLeft, ShieldCheck, Zap, Trophy, CheckCircle, AlertTriangle, Copy, Landmark, Sparkles } from "lucide-react";
 import { supabase } from "@/lib/supabase";
 
 function SprintDetailContent({ slug }: { slug: string }) {
@@ -27,15 +27,18 @@ function SprintDetailContent({ slug }: { slug: string }) {
   const [userSubmission, setUserSubmission] = useState<any>(null);
   const [isCopied, setIsCopied] = useState(false);
 
-  const fetchSprintDetails = () => {
-    sprintService.getSprintBySlug(slug).then((res) => {
-      if (res.success && res.data) {
-        setSprint(res.data);
-      }
-    });
-  };
+  // Payout / Disbursement States
+  const [participantData, setParticipantData] = useState<any>(null);
+  const [showPayoutModal, setShowPayoutModal] = useState(false);
+  const [banksList, setBanksList] = useState<Array<{ name: string; code: string }>>([]);
+  const [selectedBankCode, setSelectedBankCode] = useState("");
+  const [accountNumber, setAccountNumber] = useState("");
+  const [validatedAccountName, setValidatedAccountName] = useState("");
+  const [isValidatingAccount, setIsValidatingAccount] = useState(false);
+  const [isClaiming, setIsClaiming] = useState(false);
+  const [settlingSprint, setSettlingSprint] = useState(false);
 
-  useEffect(() => {
+  const fetchSprintDetails = () => {
     sprintService.getSprintBySlug(slug).then((res) => {
       if (res.success && res.data) {
         setSprint(res.data);
@@ -55,7 +58,7 @@ function SprintDetailContent({ slug }: { slug: string }) {
           }
         };
 
-        // 1. Check if user is registered in this sprint & fetch submission status
+        // Check if user is registered in this sprint & fetch submission status
         supabase.auth.getUser().then(({ data: { user } }) => {
           const userId = user?.id;
           if (userId) {
@@ -68,6 +71,7 @@ function SprintDetailContent({ slug }: { slug: string }) {
               .then(({ data: participant }) => {
                 if (participant) {
                   setHasJoined(true);
+                  setParticipantData(participant);
                 }
               });
 
@@ -97,9 +101,53 @@ function SprintDetailContent({ slug }: { slug: string }) {
         });
       }
     });
+  };
+
+  useEffect(() => {
+    fetchSprintDetails();
   }, [slug]);
 
-  // 2. Immediate registration confirmation if user has successfully redirected back from Monnify
+  // Load banks list for claim dropdown
+  useEffect(() => {
+    if (showPayoutModal && banksList.length === 0) {
+      fetch("/api/v1/payments/banks")
+        .then((res) => res.json())
+        .then((body) => {
+          if (body.success && body.data) {
+            setBanksList(body.data);
+          }
+        })
+        .catch((err) => console.error("Failed to load bank list:", err));
+    }
+  }, [showPayoutModal, banksList]);
+
+  // Handle Account Name enquiry validation on 10 digits
+  useEffect(() => {
+    if (accountNumber.length === 10 && selectedBankCode) {
+      setIsValidatingAccount(true);
+      setValidatedAccountName("");
+      fetch(`/api/v1/payments/validate-account?accountNumber=${accountNumber}&bankCode=${selectedBankCode}`)
+        .then((res) => res.json())
+        .then((body) => {
+          if (body.success && body.data) {
+            setValidatedAccountName(body.data.accountName);
+          } else {
+            setValidatedAccountName("Account Lookup Failed");
+          }
+        })
+        .catch((err) => {
+          console.error("Account validation error:", err);
+          setValidatedAccountName("Account Lookup Error");
+        })
+        .finally(() => {
+          setIsValidatingAccount(false);
+        });
+    } else {
+      setValidatedAccountName("");
+    }
+  }, [accountNumber, selectedBankCode]);
+
+  // Immediate registration confirmation if user has successfully redirected back from Monnify
   useEffect(() => {
     if (paymentStatus === "success") {
       setHasJoined(true);
@@ -168,12 +216,85 @@ function SprintDetailContent({ slug }: { slug: string }) {
     }
   };
 
+  // Sandbox Settlement trigger for testing completed challenge payout flows
+  const handleTriggerSettlement = async () => {
+    setSettlingSprint(true);
+    try {
+      const res = await fetch(`/api/v1/settlements/${sprint.id}/trigger`, {
+        method: "POST",
+      });
+      const data = await res.json();
+      if (!res.ok || !data.success) {
+        throw new Error(data.message || "Failed to execute pool settlement");
+      }
+      alert("Sprint successfully settled in database!");
+      fetchSprintDetails();
+    } catch (err: any) {
+      alert(err.message || "Settlement failed");
+    } finally {
+      setSettlingSprint(false);
+    }
+  };
+
+  // Disburse payout call hitting our Monnify disbursement pipeline
+  const handleClaimPayoutSubmit = async () => {
+    if (!selectedBankCode || !accountNumber || !validatedAccountName) {
+      alert("Please complete the bank verification details first.");
+      return;
+    }
+
+    setIsClaiming(true);
+    try {
+      const { data: { session } } = await supabase.auth.getSession();
+      if (!session) {
+        alert("Authentication required. Please log in first.");
+        return;
+      }
+
+      const res = await fetch("/api/v1/payments/disburse", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          "Authorization": `Bearer ${session.access_token}`,
+        },
+        body: JSON.stringify({
+          sprintId: sprint.id,
+          bankCode: selectedBankCode,
+          accountNumber,
+          accountName: validatedAccountName,
+        }),
+      });
+
+      const body = await res.json();
+      if (!res.ok || !body.success) {
+        throw new Error(body.message || "Payout disbursement failed");
+      }
+
+      alert("✓ Payout successfully claimed and disbursed!");
+      setShowPayoutModal(false);
+      fetchSprintDetails();
+    } catch (err: any) {
+      alert(err.message || "Payout failed");
+    } finally {
+      setIsClaiming(false);
+    }
+  };
+
   // ShipR Escrow Formula: Passing builders receive 100% initial stake back + pro-rata share of 50% forfeited penalty pool from failed builders
   const estimatedFails = Math.max(1, Math.round((sprint.filledSlots || 1) * 0.25));
   const estimatedPasses = Math.max(1, (sprint.filledSlots || 1) - estimatedFails);
   const failureBonusPool = estimatedFails * (sprint.commitmentNgn * 0.5); // 50% penalty per failed participant
   const projectedPayout = sprint.commitmentNgn + (failureBonusPool / estimatedPasses);
+  
   const isClosed = sprint.status === "SETTLED" || sprint.status === "EVALUATING" || new Date(sprint.endTime) <= new Date();
+
+  // Dynamic Return Metrics
+  const showRealValue = sprint.status === "SETTLED" && participantData;
+  const returnLabel = showRealValue ? "Real PASS Return" : "Est. PASS Return";
+  const returnVal = showRealValue ? Number(participantData.payout_amount || 0) : projectedPayout;
+  const returnSub = showRealValue
+    ? (Number(participantData.payout_amount || 0) > sprint.commitmentNgn ? "Passed (Stake + Bonus)" : "Failed (50% Refund)")
+    : "Initial Stake + Est. Bonus";
 
   return (
     <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-10 bg-background">
@@ -213,7 +334,7 @@ function SprintDetailContent({ slug }: { slug: string }) {
           <div className="grid grid-cols-2 sm:grid-cols-3 gap-4">
             <StatCard label="Required Stake" value={formatNGN(sprint.commitmentNgn)} subtext="Monnify Secured" icon={<Zap className="w-4 h-4" />} highlight />
             <StatCard label="Total Pool" value={formatNGN(sprint.totalPoolNgn)} subtext={`${sprint.filledSlots} Builders`} icon={<ShieldCheck className="w-4 h-4" />} />
-            <StatCard label="Est. PASS Return" value={formatNGN(projectedPayout)} subtext="Initial Stake + Bonus" icon={<Trophy className="w-4 h-4" />} />
+            <StatCard label={returnLabel} value={formatNGN(returnVal)} subtext={returnSub} icon={<Trophy className="w-4 h-4" />} />
           </div>
 
           {/* Definition of Done */}
@@ -263,15 +384,77 @@ function SprintDetailContent({ slug }: { slug: string }) {
               </div>
             </div>
 
+            {/* Claim Payout card (If SPRINT IS SETTLED) */}
+            {sprint.status === "SETTLED" && participantData ? (
+              <div className="p-4 rounded-xl bg-emerald-50 border border-emerald-200 space-y-4">
+                <div className="flex items-center gap-2 text-emerald-950 font-sans font-bold text-sm">
+                  <Sparkles className="w-4 h-4 text-emerald-600 animate-pulse" />
+                  <span>Pool Settlement Finalized</span>
+                </div>
+                
+                <div className="space-y-2">
+                  <div className="flex justify-between text-xs text-emerald-800">
+                    <span>Your Settlement Payout:</span>
+                    <span className="font-mono font-bold text-emerald-950">{formatNGN(participantData.payout_amount)}</span>
+                  </div>
+                  <div className="flex justify-between text-[10px] text-emerald-700">
+                    <span>Status:</span>
+                    <span className="font-bold tracking-wide uppercase font-mono">{participantData.payout_status}</span>
+                  </div>
+                </div>
+
+                {participantData.payout_status === "UNCLAIMED" ? (
+                  <Button
+                    size="lg"
+                    className="w-full bg-emerald-600 hover:bg-emerald-700 border-emerald-600 text-white font-bold"
+                    onClick={() => setShowPayoutModal(true)}
+                  >
+                    Claim Payout Transfer
+                  </Button>
+                ) : (
+                  <div className="p-3 rounded-lg bg-white border border-emerald-300 space-y-2 text-[10px] text-emerald-850 leading-relaxed">
+                    <p className="text-emerald-900 font-bold">✓ Payout successfully claimed!</p>
+                    <p>Disbursed to: <span className="font-mono font-bold">{participantData.destination_account_name}</span> ({participantData.destination_account_number})</p>
+                    <p>Ref: <span className="font-mono text-zinc-500 text-[9px] break-all">{participantData.payout_reference}</span></p>
+                  </div>
+                )}
+              </div>
+            ) : null}
+
+            {/* Sandbox Settlement Trigger Button (Only when countdown ends and not settled) */}
+            {new Date(sprint.endTime) <= new Date() && sprint.status !== "SETTLED" && (
+              <div className="p-4 rounded-xl bg-amber-50 border border-amber-200 text-center space-y-3">
+                <div className="flex items-center justify-center gap-2 text-amber-700 font-bold text-xs">
+                  <AlertTriangle className="w-4 h-4 shrink-0 animate-bounce" />
+                  <span>Sprint Period Ended</span>
+                </div>
+                <p className="text-[10px] text-amber-800 leading-normal">
+                  Challenge ended. Run calculations to distribute non-completers' stakes to winners.
+                </p>
+                <Button
+                  size="sm"
+                  className="w-full bg-amber-600 hover:bg-amber-700 border-amber-600 text-white text-xs font-bold"
+                  onClick={handleTriggerSettlement}
+                  isLoading={settlingSprint}
+                >
+                  Settle Challenge Pool
+                </Button>
+              </div>
+            )}
+
             {/* Action CTA */}
-            {isClosed ? (
+            {sprint.status === "SETTLED" ? (
+              <div className="p-3 rounded-lg bg-zinc-50 border border-zinc-200 text-center text-xs text-zinc-500 font-mono">
+                Challenge Settled
+              </div>
+            ) : isClosed ? (
               <div className="p-4 rounded-xl bg-red-50 border border-red-200 text-center space-y-2">
                 <div className="flex items-center justify-center gap-2 text-red-700 font-bold text-sm">
                   <AlertTriangle className="w-4 h-4" />
                   <span>Sprint Closed</span>
                 </div>
                 <p className="text-xs text-red-800 leading-normal">
-                  This sprint has already ended. Registrations and submissions are closed.
+                  This sprint has ended. Registrations and submissions are closed. Payouts will open as soon as the pool is settled.
                 </p>
               </div>
             ) : hasJoined ? (
@@ -467,7 +650,6 @@ function SprintDetailContent({ slug }: { slug: string }) {
                     await sprintService.joinSprint(sprint.id);
                     setHasJoined(true);
                     setShowCheckoutModal(false);
-                    // Re-fetch the latest metrics (pool size, slots claimed) from db immediately
                     fetchSprintDetails();
                   } catch (err: any) {
                     alert(err.message || "Failed to register bank transfer");
@@ -513,6 +695,91 @@ function SprintDetailContent({ slug }: { slug: string }) {
               onClick={handleConfirmPayment}
             >
               Pay Online via Monnify Card / Transfer
+            </Button>
+          </Card>
+        </div>
+      )}
+
+      {/* Claim Payout Bank Credentials Modal */}
+      {showPayoutModal && participantData && (
+        <div className="fixed inset-0 z-50 bg-black/40 backdrop-blur-sm flex items-center justify-center p-4">
+          <Card className="max-w-md w-full p-6 border-zinc-300 space-y-6 shadow-2xl animate-in fade-in duration-200">
+            <div className="flex items-center justify-between border-b border-zinc-200 pb-4">
+              <div className="flex items-center gap-2">
+                <Landmark className="w-5 h-5 text-emerald-600" />
+                <h3 className="text-h3 text-zinc-900">Claim Settlement Payout</h3>
+              </div>
+              <button onClick={() => setShowPayoutModal(false)} className="text-zinc-400 hover:text-zinc-900 text-sm font-sans" aria-label="Close modal">
+                ✕
+              </button>
+            </div>
+
+            <div className="p-4 rounded-xl bg-emerald-50 border border-emerald-200 text-center space-y-2">
+              <span className="text-[10px] text-emerald-800 font-mono uppercase font-bold tracking-wider font-sans">Redistribution Payout amount</span>
+              <h2 className="text-3xl font-extrabold text-emerald-950 font-mono tracking-tight">{formatNGN(participantData.payout_amount)}</h2>
+              <p className="text-[10px] text-emerald-850 font-sans">
+                {participantData.payout_amount > sprint.commitmentNgn 
+                  ? "✓ Winner's Bonus Included (Losers forfeited stakes split)" 
+                  : "Failed Completion 50% Refund"}
+              </p>
+            </div>
+
+            <div className="space-y-4">
+              {/* Select Bank */}
+              <div className="space-y-1.5">
+                <label className="text-label text-zinc-700 font-bold block">Beneficiary Bank</label>
+                <select
+                  value={selectedBankCode}
+                  onChange={(e) => setSelectedBankCode(e.target.value)}
+                  className="w-full px-3 py-2 rounded-xl bg-white border border-zinc-200 text-sm focus:outline-none focus:border-emerald-500 shadow-soft-card"
+                >
+                  <option value="">Select Bank...</option>
+                  {banksList.map((bank) => (
+                    <option key={bank.code} value={bank.code}>
+                      {bank.name}
+                    </option>
+                  ))}
+                </select>
+              </div>
+
+              {/* Account Number */}
+              <div className="space-y-1.5">
+                <label className="text-label text-zinc-700 font-bold block">Account Number (10 Digits)</label>
+                <input
+                  type="text"
+                  maxLength={10}
+                  placeholder="e.g. 0123456789"
+                  value={accountNumber}
+                  onChange={(e) => setAccountNumber(e.target.value.replace(/\D/g, ""))}
+                  className="w-full px-3 py-2 rounded-xl bg-white border border-zinc-200 text-sm font-mono focus:outline-none focus:border-emerald-500 shadow-soft-card"
+                />
+              </div>
+
+              {/* Account Name Enquiry Preview */}
+              {accountNumber.length === 10 && (
+                <div className="p-3 rounded-lg bg-zinc-50 border border-zinc-200 text-xs">
+                  {isValidatingAccount ? (
+                    <span className="text-zinc-500 animate-pulse font-mono block">Looking up beneficiary name...</span>
+                  ) : validatedAccountName ? (
+                    <div className="space-y-1">
+                      <span className="text-[10px] text-zinc-500 block">Verified Beneficiary Name:</span>
+                      <span className="font-bold text-zinc-950 font-sans text-xs tracking-wide uppercase block">
+                        {validatedAccountName}
+                      </span>
+                    </div>
+                  ) : null}
+                </div>
+              )}
+            </div>
+
+            <Button
+              size="lg"
+              className="w-full bg-emerald-600 hover:bg-emerald-700 border-emerald-600 text-white font-bold"
+              disabled={!validatedAccountName || validatedAccountName.includes("Failed") || validatedAccountName.includes("Error")}
+              onClick={handleClaimPayoutSubmit}
+              isLoading={isClaiming}
+            >
+              Confirm & Disburse Payout
             </Button>
           </Card>
         </div>
